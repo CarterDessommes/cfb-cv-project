@@ -1,0 +1,15 @@
+Predicting San Francisco 49ers Play Structure from TV Broadcast Footage
+Problem Statement
+Football offenses reveal useful structure through formation, spacing, personnel alignment, motion, and route development. However, this structure is hard to extract from TV footage because players overlap, camera angles change, and the field is viewed in perspective.
+This project will build a prototype pipeline for analyzing San Francisco 49ers offensive plays from standard broadcast footage. The pipeline will detect players, classify teams, estimate field geometry, map player locations into a normalized top-down view, and track motion over time. These reconstructed features will then be used to make coarse predictions about play structure, such as formation, route/motion patterns, or run/pass tendency. The long-term motivation is real-time play prediction, but for this project success means just showing that broadcast video can be converted into structured football features useful for prediction.
+Proposed Methodology
+Player Detection and Team Classification - We will detect players in broadcast frames, including overlapping players near the line of scrimmage. We may use multi-resolution detection and IoU-based non-maximum suppression to merge duplicate boxes. We will then classify players by team using jersey crop features such as color, texture, and clustering.
+Field Geometry and Perspective Correction - We will estimate field geometry using yard lines, hash marks, boundaries, and other field markings. This will use edge detection, line detection, feature fitting, and geometric transformations to understand the camera perspective.
+Homography and Top-Down Mapping - Using detected field markings, we will compute an approximate homography from image coordinates to field coordinates. This lets us transform player locations into a normalized top-down field view so plays from different camera angles can be compared.
+Motion, Tracking, and Play Structure - We will track players across frames to estimate motion, spacing changes, and early route or blocking patterns. This adds temporal information beyond a single frame and helps represent how the play develops.
+Prediction from Reconstructed Features - Lastly, we will use the reconstructed features to make coarse predictions about offensive play structure, such as formation type, route structure, or run/pass tendency. The goal is not to perfectly identify exact play calls, but to test whether broadcast video can produce useful predictive features.
+Feasibility and Timeline
+Week 1: Collect 49ers broadcast clips, define labels, and build the initial player detection pipeline.
+Week 2: Detect field lines and markings, estimate camera perspective, compute homographies, and generate top-down player coordinates.
+Week 3: Add team classification, improve field-boundary estimation, and implement basic player tracking.
+Week 4: Train and evaluate a simple play-structure prediction model using reconstructed player locations, spacing, and motion. Create visualizations comparing the broadcast footage, top-down reconstruction, and prediction output.
