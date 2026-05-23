@@ -1,0 +1,23 @@
+# BoT-SORT tracker configuration with Re-ID enabled
+# See: https://docs.ultralytics.com/modes/track/
+
+tracker_type: botsort
+
+# Detection thresholds
+track_high_thresh: 0.5      # Threshold for high confidence detections
+track_low_thresh: 0.1       # Threshold for low confidence (second association)
+new_track_thresh: 0.6       # Threshold for initializing new tracks
+
+# Track management
+track_buffer: 60            # Frames to keep lost tracks (increased for longer occlusions)
+match_thresh: 0.8           # IoU matching threshold
+fuse_score: true            # Fuse detection score with motion/IoU for matching
+
+# Global Motion Compensation
+gmc_method: sparseOptFlow   # Options: sparseOptFlow, orb, sift, ecc, none
+
+# Re-ID settings (KEY for fixing ID switches!)
+proximity_thresh: 0.5       # Spatial matching threshold
+appearance_thresh: 0.25     # Re-ID embedding similarity threshold
+with_reid: true             # ENABLE Re-ID embeddings
+model: auto                 # Use detector features for Re-ID

@@ -1,26 +1,14 @@
 """
-BoT-SORT tracker with local YOLO model.
-Fast - no API calls, runs entirely on your machine.
+BoT-SORT tracker with local YOLO model and Re-ID support.
+Uses Ultralytics built-in BoT-SORT with appearance embeddings for
+consistent track IDs across occlusions.
 """
 
-from botsort import BoTSORT
 from ultralytics import YOLO
 import numpy as np
 import cv2
 import sys
 import os
-
-
-def create_tracker():
-    """Initialize BoT-SORT tracker."""
-    return BoTSORT(
-        track_high_thresh=0.5,
-        track_low_thresh=0.1,
-        new_track_thresh=0.6,
-        track_buffer=30,
-        match_thresh=0.7,
-        use_cmc=True,
-    )
 
 
 def load_model(model_path):
@@ -29,27 +17,18 @@ def load_model(model_path):
     return YOLO(model_path)
 
 
-def run_detection(model, frame, confidence=0.4):
-    """Run YOLO detection. Returns (N, 6) array [x1, y1, x2, y2, conf, cls]."""
-    results = model(frame, verbose=False, conf=confidence)
-
-    dets = []
-    for r in results:
-        if r.boxes is not None:
-            for box in r.boxes:
-                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-                conf = float(box.conf[0])
-                cls = int(box.cls[0])
-                dets.append([x1, y1, x2, y2, conf, cls])
-
-    return np.array(dets) if dets else np.empty((0, 6))
+def get_tracker_config_path():
+    """Get path to botsort.yaml config file."""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(script_dir, "botsort.yaml")
 
 
 def track_video(video_path, model_path, output_path=None, confidence=0.4, show=True):
-    """Run BoT-SORT tracking on video."""
+    """Run BoT-SORT tracking on video with Re-ID support."""
 
     model = load_model(model_path)
-    tracker = create_tracker()
+    tracker_config = get_tracker_config_path()
+    print(f"Using tracker config: {tracker_config}")
 
     cap = cv2.VideoCapture(video_path)
     fps = int(cap.get(cv2.CAP_PROP_FPS))
@@ -64,12 +43,13 @@ def track_video(video_path, model_path, output_path=None, confidence=0.4, show=T
 
     colors = {}
     frame_num = 0
-    window_name = "BoT-SORT Tracking"
+    tracks = []  # Persist tracks across skipped frames
+    window_name = "BoT-SORT Tracking (Re-ID)"
 
     if show:
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
 
-    print(f"Processing {total_frames} frames...")
+    print(f"Processing {total_frames} frames (every other frame)...")
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -78,15 +58,49 @@ def track_video(video_path, model_path, output_path=None, confidence=0.4, show=T
 
         frame_num += 1
 
-        # Run detection
-        dets = run_detection(model, frame, confidence)
+        # Only run detection on every other frame
+        if frame_num % 2 == 1:
+            # Run detection + tracking with Re-ID using Ultralytics built-in BoT-SORT
+            # persist=True maintains track state across frames
+            results = model.track(
+                frame,
+                tracker=tracker_config,
+                persist=True,
+                conf=confidence,
+                verbose=False,
+                device='mps',    # Use Apple Silicon GPU
+                half=True,       # FP16 inference (2x faster)
+            )
 
-        # Update tracker
-        tracks = tracker.update(dets, frame) if len(dets) > 0 else np.empty((0, 5))
+            # Extract tracks from results
+            tracks = []
+            if results[0].boxes is not None and results[0].boxes.id is not None:
+                boxes = results[0].boxes.xyxy.cpu().numpy()
+                track_ids = results[0].boxes.id.cpu().numpy().astype(int)
+                classes = results[0].boxes.cls.cpu().numpy().astype(int)
+                confs = results[0].boxes.conf.cpu().numpy()
+
+                # Separate by class and keep top N by confidence
+                # Class 0 = player (max 22), Class 1 = referee (max 7)
+                max_per_class = {0: 22, 1: 7}
+
+                class_detections = {}
+                for box, track_id, cls, conf in zip(boxes, track_ids, classes, confs):
+                    if cls not in class_detections:
+                        class_detections[cls] = []
+                    class_detections[cls].append((conf, [*box, track_id, cls]))
+
+                # Sort by confidence and keep top N for each class
+                for cls, detections in class_detections.items():
+                    detections.sort(key=lambda x: x[0], reverse=True)
+                    max_count = max_per_class.get(cls, 50)  # default 50 for unknown classes
+                    for conf, track_data in detections[:max_count]:
+                        tracks.append(track_data)
+        # On skipped frames, reuse previous tracks
 
         # Draw tracks
         for track in tracks:
-            x1, y1, x2, y2, track_id = track[:5].astype(int)
+            x1, y1, x2, y2, track_id, cls = [int(v) for v in track]
 
             if track_id not in colors:
                 colors[track_id] = (
@@ -96,8 +110,9 @@ def track_video(video_path, model_path, output_path=None, confidence=0.4, show=T
                 )
             color = colors[track_id]
 
+            label = "R" if cls == 1 else "P"  # R=referee, P=player
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-            cv2.putText(frame, f"ID:{track_id}", (x1, y1 - 10),
+            cv2.putText(frame, f"{label}{track_id}", (x1, y1 - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
         cv2.putText(frame, f"Frame: {frame_num}/{total_frames} | Tracks: {len(tracks)}",
