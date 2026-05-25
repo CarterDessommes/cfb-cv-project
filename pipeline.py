@@ -5,7 +5,7 @@ Usage:
     python pipeline.py <video> [--det PATH] [--ocr PATH] [--out FILE] [--conf N]
 
 Defaults:
-    --det  weights/best.pt
+    --det  weights/player-best.pt
     --ocr  weights/jersey_ocr.pt
     --conf 0.4
 """
@@ -140,7 +140,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     video     = sys.argv[1]
-    det_model = "weights/best.pt"
+    det_model = "weights/player-best.pt"
     ocr_model = "weights/jersey_ocr.pt"
     out_path  = None
     conf      = 0.4

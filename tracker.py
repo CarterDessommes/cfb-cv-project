@@ -237,7 +237,7 @@ if __name__ == "__main__":
         print("Usage: python tracker.py <video_path> [options]")
         print()
         print("Options:")
-        print("  --model PATH       Path to player YOLO weights (default: weights/best.pt)")
+        print("  --model PATH       Path to player YOLO weights (default: weights/player-best.pt)")
         print("  --out FILE         Save output video")
         print("  --conf N           Player detection confidence 0.0-1.0 (default: 0.4)")
         print()
@@ -253,7 +253,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     video_path = sys.argv[1]
-    model_path = "weights/best.pt"
+    model_path = "weights/player-best.pt"
     output_path = None
     confidence = 0.4
     ball_model_path = DEFAULT_BALL_MODEL

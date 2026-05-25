@@ -155,7 +155,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     video_path = sys.argv[1]
-    model_path = "weights/best.pt"
+    model_path = "weights/player-best.pt"
     for i, arg in enumerate(sys.argv[2:], 2):
         if arg == "--model" and i + 1 < len(sys.argv):
             model_path = sys.argv[i + 1]
