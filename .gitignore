@@ -7,3 +7,6 @@ venv/
 weights/
 *.pt
 *.onnx
+
+# SAM2 model weights (no longer used)
+sam2*.pt
