@@ -1,0 +1,25 @@
+# BoT-SORT tracker configuration optimized for ball tracking
+# - Lower confidence thresholds (ball detections are less confident)
+# - Shorter track buffer (ball rarely occluded for long)
+# - Re-ID disabled (ball has no distinguishing appearance features)
+
+tracker_type: botsort
+
+# Detection thresholds - lower than player tracker
+track_high_thresh: 0.3      # Lower threshold for small ball detections
+track_low_thresh: 0.05      # Very low for second association pass
+new_track_thresh: 0.4       # Lower barrier to start new tracks
+
+# Track management
+track_buffer: 30            # Shorter buffer - ball occlusions are brief
+match_thresh: 0.6           # Lower IoU threshold for fast-moving ball
+fuse_score: true            # Fuse detection score with motion/IoU
+
+# Global Motion Compensation
+gmc_method: sparseOptFlow   # Compensate for camera motion
+
+# Re-ID settings - DISABLED for ball
+# Ball has no distinguishing appearance features, Re-ID would hurt more than help
+proximity_thresh: 0.5       # Required even when Re-ID disabled
+appearance_thresh: 0.25     # Required even when Re-ID disabled
+with_reid: false

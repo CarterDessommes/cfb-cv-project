@@ -151,7 +151,7 @@ Core skills: Deep learning, object detection, tracking algorithms. These compone
 ---
 
 ### Person 2: Field Geometry & Segmentation
-- Step 3: Field Mapping / Homography
+- Step 3: Field Mapping / Homography will need to train a keypont model like in ai basketball video
 - Step 6: Sideline Detection (fallback)
 - Step 8: Play Segmentation
 
@@ -161,7 +161,7 @@ Core skills: Classical CV, camera geometry, signal processing. All about underst
 
 ### Person 3: Classification & Visualization
 - Step 4: Team Classifier
-- Step 5: Jersey Number Recognizer
+- Step 4 also: Jersey Number Recognizer
 - Step 9: Real-Time Reconstruction
 - Step 10: Play Diagram Export
 
@@ -173,3 +173,4 @@ Core skills: Image classification, OCR, visualization/rendering. Takes detection
 - Person 1 delivers bounding boxes → Person 2 needs them for homography, Person 3 needs them for classification
 - Person 2 delivers field coordinates → Person 3 needs them for reconstruction
 - Final integration: Person 3's reconstruction consumes all outputs
+B
