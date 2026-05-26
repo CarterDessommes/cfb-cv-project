@@ -13,10 +13,12 @@ Defaults:
 
 import sys
 import cv2
+import numpy as np
 from collections import Counter
 from ultralytics import YOLO
 
 from team_classifier import TeamClassifier, _best_device
+from field_mapper import project_players, build_field_canvas, draw_players_on_canvas, CANVAS_SCALE
 
 _NUMBER_HISTORY: dict[int, list[str]] = {}
 _VOTE_WINDOW = 15
@@ -161,21 +163,63 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
             cv2.putText(frame, f"{team.upper()} #{number}",
                         (x1, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
+        # ── Field mapping: project players to top-down field coords ─────────
+        detections_for_mapper = [
+            {"track_id": p["track_id"], "bbox": p["bbox"], "class": 0}
+            for p in field_state
+        ]
+        field_points = project_players(
+            frame_num=frame_num - 1,   # frame_num is 1-indexed; npz is 0-indexed
+            detections=detections_for_mapper,
+            homography_path="homographies.npz",
+        )
+        # Add field coords back to field_state
+        fp_by_id = {p["track_id"]: p for p in field_points}
+        for p in field_state:
+            fp = fp_by_id.get(p["track_id"])
+            p["field_x"] = fp["field_x"] if fp else None
+            p["field_y"] = fp["field_y"] if fp else None
+
+        # ── Top-down canvas ───────────────────────────────────────────────────
+        canvas = build_field_canvas(scale=CANVAS_SCALE)
+        # Color dots by team
+        team_color_map = {
+            "offense": (0, 200, 255),
+            "defense": (255, 100, 0),
+            "unknown": (128, 128, 128),
+        }
+        for p, fp in zip(field_state, field_points):
+            if not fp["in_bounds"]:
+                continue
+            cx = int(fp["field_x"] * CANVAS_SCALE)
+            cy = int(fp["field_y"] * CANVAS_SCALE)
+            color = team_color_map.get(p["team"], (128, 128, 128))
+            cv2.circle(canvas, (cx, cy), 7, color, -1)
+            cv2.circle(canvas, (cx, cy), 7, (255, 255, 255), 1)
+            cv2.putText(canvas, str(p["track_id"]), (cx + 8, cy + 4),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
+
+        # Resize canvas to match frame height and show side by side
+        target_h = frame.shape[0]
+        sf = target_h / canvas.shape[0]
+        canvas_resized = cv2.resize(canvas, (int(canvas.shape[1] * sf), target_h))
+        combined = np.hstack([frame, canvas_resized])
+
         if ball_xy:
             bx, by = int(ball_xy[0]), int(ball_xy[1])
-            cv2.circle(frame, (bx, by), 8, (0, 255, 0), 2)
-            cv2.putText(frame, "ball", (bx + 10, by), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 1)
+            cv2.circle(combined, (bx, by), 8, (0, 255, 0), 2)
+            cv2.putText(combined, "ball", (bx + 10, by), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 1)
 
-        cv2.putText(frame, f"Frame {frame_num}/{total}  players={len(field_state)}",
+        cv2.putText(combined, f"Frame {frame_num}/{total}  players={len(field_state)}",
                     (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
         if ocr_warning:
-            cv2.putText(frame, "WARNING: jersey # accuracy is low (experimental)",
+            cv2.putText(combined, "WARNING: jersey # accuracy is low (experimental)",
                         (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
         if writer:
-            writer.write(frame)
+            writer.write(combined)
 
-        cv2.imshow(window, frame)
+        cv2.imshow(window, combined)
         if cv2.waitKey(1) & 0xFF in (ord("q"), 27):
             break
 
