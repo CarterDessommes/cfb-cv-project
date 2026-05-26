@@ -146,8 +146,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
         field_state = []
         for i, (box, team) in enumerate(zip(boxes, team_labels)):
             track_id = int(box[4])
-            raw      = number_map.get(i, "?")
-            number   = _stable_number(track_id, raw) if raw != "?" else "?"
+            number   = number_map.get(i, "?")
             field_state.append({
                 "track_id": track_id,
                 "bbox":     [int(v) for v in box[:4]],
