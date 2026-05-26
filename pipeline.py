@@ -18,7 +18,7 @@ from collections import Counter
 from ultralytics import YOLO
 
 from team_classifier import TeamClassifier, _best_device
-from field_mapper import project_players, build_field_canvas, draw_players_on_canvas, CANVAS_SCALE
+from field_mapper import project_players, build_field_canvas, CANVAS_SCALE
 
 _NUMBER_HISTORY: dict[int, list[str]] = {}
 _VOTE_WINDOW = 15

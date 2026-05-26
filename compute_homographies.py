@@ -58,7 +58,7 @@ def track_keypoints(prev_gray: np.ndarray, curr_gray: np.ndarray,
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Compute per-frame homographies")
-    parser.add_argument("annotations_json", help="Output of parse_roboflow.py")
+    parser.add_argument("annotations_json", help="JSON file mapping frame names to keypoints")
     parser.add_argument("video", help="Input video file")
     parser.add_argument("--out", default="homographies.npz", help="Output .npz")
     args = parser.parse_args()
