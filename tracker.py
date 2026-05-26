@@ -10,6 +10,10 @@ import cv2
 import sys
 import os
 
+# Constants
+BALL_TRACK_ID_OFFSET = 1000
+DEFAULT_BALL_MODEL = "weights/ball-best.pt"
+
 
 def load_model(model_path):
     """Load YOLO model."""
@@ -17,18 +21,33 @@ def load_model(model_path):
     return YOLO(model_path)
 
 
-def get_tracker_config_path():
+def get_tracker_config_path(ball=False):
     """Get path to botsort.yaml config file."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(script_dir, "botsort.yaml")
+    config_name = "botsort_ball.yaml" if ball else "botsort.yaml"
+    return os.path.join(script_dir, config_name)
 
 
-def track_video(video_path, model_path, output_path=None, confidence=0.4, show=True):
-    """Run BoT-SORT tracking on video with Re-ID support."""
+def track_video(video_path, model_path, output_path=None, confidence=0.4, show=True,
+                ball_model_path=None, ball_confidence=0.3, track_ball=True):
+    """Run BoT-SORT tracking on video with Re-ID support and optional ball tracking."""
 
+    # Load player/referee model
     model = load_model(model_path)
     tracker_config = get_tracker_config_path()
-    print(f"Using tracker config: {tracker_config}")
+    print(f"Using player tracker config: {tracker_config}")
+
+    # Load ball model if enabled
+    ball_model = None
+    ball_tracker_config = None
+    if track_ball and ball_model_path:
+        if os.path.exists(ball_model_path):
+            ball_model = load_model(ball_model_path)
+            ball_tracker_config = get_tracker_config_path(ball=True)
+            print(f"Using ball tracker config: {ball_tracker_config}")
+        else:
+            print(f"Warning: Ball model not found at {ball_model_path}, disabling ball tracking")
+            track_ball = False
 
     cap = cv2.VideoCapture(video_path)
     fps = int(cap.get(cv2.CAP_PROP_FPS))
@@ -43,7 +62,8 @@ def track_video(video_path, model_path, output_path=None, confidence=0.4, show=T
 
     colors = {}
     frame_num = 0
-    tracks = []  # Persist tracks across skipped frames
+    tracks = []  # Persist player/referee tracks across skipped frames
+    ball_tracks = []  # Persist ball tracks across skipped frames
     window_name = "BoT-SORT Tracking (Re-ID)"
 
     if show:
@@ -96,9 +116,64 @@ def track_video(video_path, model_path, output_path=None, confidence=0.4, show=T
                     max_count = max_per_class.get(cls, 50)  # default 50 for unknown classes
                     for conf, track_data in detections[:max_count]:
                         tracks.append(track_data)
+
+            # Run ball model tracking if enabled
+            ball_tracks = []
+            if ball_model is not None:
+                ball_results = ball_model.track(
+                    frame,
+                    tracker=ball_tracker_config,
+                    persist=True,
+                    conf=ball_confidence,
+                    verbose=False,
+                    device='mps',
+                    half=True,
+                )
+
+                # Debug: check what we got
+                boxes_obj = ball_results[0].boxes
+                if boxes_obj is not None and len(boxes_obj) > 0:
+                    num_detections = len(boxes_obj)
+                    has_ids = boxes_obj.id is not None
+                    confs_debug = boxes_obj.conf.cpu().numpy()
+                    if frame_num <= 10 or frame_num % 50 == 0:
+                        print(f"\n[DEBUG] Frame {frame_num}: {num_detections} ball detections, confs={confs_debug.round(3)}, has_ids={has_ids}")
+
+                    if has_ids:
+                        boxes = boxes_obj.xyxy.cpu().numpy()
+                        track_ids = boxes_obj.id.cpu().numpy().astype(int)
+                        confs = boxes_obj.conf.cpu().numpy()
+
+                        # Get all ball detections sorted by confidence
+                        ball_detections = []
+                        for box, track_id, conf in zip(boxes, track_ids, confs):
+                            # Offset track ID to avoid collision with player IDs
+                            offset_id = track_id + BALL_TRACK_ID_OFFSET
+                            ball_detections.append((conf, [*box, offset_id, 2]))  # cls=2 for ball
+
+                        # Keep only the highest confidence ball (max 1)
+                        if ball_detections:
+                            ball_detections.sort(key=lambda x: x[0], reverse=True)
+                            ball_tracks.append(ball_detections[0][1])
+                    else:
+                        # No track IDs yet - use raw detections without tracking
+                        boxes = boxes_obj.xyxy.cpu().numpy()
+                        confs = boxes_obj.conf.cpu().numpy()
+
+                        # Get highest confidence detection
+                        best_idx = confs.argmax()
+                        box = boxes[best_idx]
+                        ball_tracks.append([*box, BALL_TRACK_ID_OFFSET, 2])
+                elif frame_num <= 10 or frame_num % 50 == 0:
+                    print(f"\n[DEBUG] Frame {frame_num}: NO ball detections")
         # On skipped frames, reuse previous tracks
 
-        # Draw tracks
+        # Count players and referees
+        player_count = sum(1 for t in tracks if int(t[5]) == 0)
+        referee_count = sum(1 for t in tracks if int(t[5]) == 1)
+        ball_detected = len(ball_tracks) > 0
+
+        # Draw player/referee tracks
         for track in tracks:
             x1, y1, x2, y2, track_id, cls = [int(v) for v in track]
 
@@ -115,8 +190,23 @@ def track_video(video_path, model_path, output_path=None, confidence=0.4, show=T
             cv2.putText(frame, f"{label}{track_id}", (x1, y1 - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
-        cv2.putText(frame, f"Frame: {frame_num}/{total_frames} | Tracks: {len(tracks)}",
-                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+        # Draw ball tracks as bright yellow circles
+        for track in ball_tracks:
+            x1, y1, x2, y2, track_id, cls = [int(v) for v in track]
+            center_x = (x1 + x2) // 2
+            center_y = (y1 + y2) // 2
+            radius = max((x2 - x1) // 2, (y2 - y1) // 2, 10)
+
+            # Bright yellow color for ball
+            ball_color = (0, 255, 255)  # BGR: yellow
+            cv2.circle(frame, (center_x, center_y), radius, ball_color, 3)
+            cv2.putText(frame, "BALL", (center_x - 20, center_y - radius - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, ball_color, 2)
+
+        # Status display with player/referee/ball counts
+        ball_status = "YES" if ball_detected else "NO"
+        status_text = f"Frame: {frame_num}/{total_frames} | P:{player_count} R:{referee_count} Ball:{ball_status}"
+        cv2.putText(frame, status_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
 
         if writer:
             writer.write(frame)
@@ -132,7 +222,8 @@ def track_video(video_path, model_path, output_path=None, confidence=0.4, show=T
                 break
 
         if frame_num % 10 == 0:
-            print(f"\rFrame {frame_num}/{total_frames}: {len(tracks)} tracks", end="")
+            ball_str = " +ball" if ball_detected else ""
+            print(f"\rFrame {frame_num}/{total_frames}: {len(tracks)} tracks{ball_str}", end="")
 
     print(f"\nDone! Processed {frame_num} frames.")
     cap.release()
@@ -146,19 +237,28 @@ if __name__ == "__main__":
         print("Usage: python tracker.py <video_path> [options]")
         print()
         print("Options:")
-        print("  --model PATH   Path to YOLO weights (default: weights/best.pt)")
-        print("  --out FILE     Save output video")
-        print("  --conf N       Detection confidence 0.0-1.0 (default: 0.4)")
+        print("  --model PATH       Path to player YOLO weights (default: weights/player-best.pt)")
+        print("  --out FILE         Save output video")
+        print("  --conf N           Player detection confidence 0.0-1.0 (default: 0.4)")
+        print()
+        print("Ball tracking options:")
+        print("  --ball-model PATH  Path to ball YOLO weights (default: weights/ball-best.pt)")
+        print("  --ball-conf N      Ball detection confidence 0.0-1.0 (default: 0.3)")
+        print("  --no-ball          Disable ball tracking")
         print()
         print("Examples:")
         print('  python tracker.py "test media/videos/bijon_run.mp4"')
         print('  python tracker.py "test media/videos/bijon_run.mp4" --out tracked.mp4')
+        print('  python tracker.py "test media/videos/bijon_run.mp4" --no-ball')
         sys.exit(1)
 
     video_path = sys.argv[1]
-    model_path = "weights/best.pt"
+    model_path = "weights/player-best.pt"
     output_path = None
     confidence = 0.4
+    ball_model_path = DEFAULT_BALL_MODEL
+    ball_confidence = 0.3
+    track_ball = True
 
     i = 2
     while i < len(sys.argv):
@@ -171,7 +271,18 @@ if __name__ == "__main__":
         elif sys.argv[i] == "--conf" and i + 1 < len(sys.argv):
             confidence = float(sys.argv[i + 1])
             i += 2
+        elif sys.argv[i] == "--ball-model" and i + 1 < len(sys.argv):
+            ball_model_path = sys.argv[i + 1]
+            i += 2
+        elif sys.argv[i] == "--ball-conf" and i + 1 < len(sys.argv):
+            ball_confidence = float(sys.argv[i + 1])
+            i += 2
+        elif sys.argv[i] == "--no-ball":
+            track_ball = False
+            i += 1
         else:
             i += 1
 
-    track_video(video_path, model_path, output_path, confidence)
+    track_video(video_path, model_path, output_path, confidence,
+                ball_model_path=ball_model_path, ball_confidence=ball_confidence,
+                track_ball=track_ball)

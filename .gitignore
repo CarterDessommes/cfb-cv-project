@@ -1,8 +1,12 @@
 .env
+claude.md
 __pycache__/
 *.pyc
 .DS_Store
 venv/
-weights/
-*.pt
+.venv/
 *.onnx
+
+# SAM2 model weights (too large for Git)
+sam2*.pt
+sam2.1*.pt
