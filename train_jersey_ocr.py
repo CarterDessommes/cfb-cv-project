@@ -22,9 +22,9 @@ DATASET_DIR = Path("/kaggle/input/datasets/frlemarchand/nfl-player-numbers")
 OUTPUT_DIR  = Path("/kaggle/working/jersey_cls")
 CSV_PATH    = DATASET_DIR / "train_player_numbers.csv"
 
-EPOCHS     = 30
-BATCH_SIZE = 64
-IMG_SIZE   = 224
+EPOCHS     = 50
+BATCH_SIZE = 128
+IMG_SIZE   = 64
 
 
 def build_classification_dataset():

@@ -10,7 +10,7 @@ Pipeline:
 Usage:
     classifier = TeamClassifier()
     classifier.fit(frame, boxes)            # call once on a clean frame with all players visible
-    labels = classifier.classify(frame, boxes)  # returns list of "team_a" / "team_b"
+    labels = classifier.classify(frame, boxes)  # returns list of "offense" / "defense"
 """
 
 import cv2
@@ -52,7 +52,11 @@ class TeamClassifier:
         self._umap: UMAP | None = None
         self._kmeans: KMeans | None = None
         self._centroids: np.ndarray | None = None  # centroids in raw embedding space
-        self.labels = ("team_a", "team_b")
+
+        # 0 or 1 — which K-Means cluster is currently labeled "offense"
+        self._offense_cluster: int = 0
+        self._ball_votes: list[int] = []
+        self._VOTE_WIN = 30
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -133,14 +137,50 @@ class TeamClassifier:
         for i, (emb, box_idx) in enumerate(zip(embeddings, valid_idx)):
             d0 = np.linalg.norm(emb - self._centroids[0])
             d1 = np.linalg.norm(emb - self._centroids[1])
-            out[box_idx] = self.labels[0] if d0 <= d1 else self.labels[1]
+            cluster = 0 if d0 <= d1 else 1
+            out[box_idx] = "offense" if cluster == self._offense_cluster else "defense"
 
         return out
 
+    def update_offense_from_ball(self, ball_xy, boxes: list, labels: list[str]) -> None:
+        """
+        Call after classify() each frame. Votes over a rolling window on which
+        cluster is actually offense (closer to the ball). Flips the assignment
+        once a majority is reached so the classifier self-corrects.
+        ball_xy: (cx, cy) in pixel coords, or None if ball not detected.
+        """
+        if ball_xy is None or self._centroids is None:
+            return
+
+        bx, by = float(ball_xy[0]), float(ball_xy[1])
+        off_pts, def_pts = [], []
+        for box, lbl in zip(boxes, labels):
+            if lbl == "unknown":
+                continue
+            cx = (float(box[0]) + float(box[2])) / 2
+            cy = (float(box[1]) + float(box[3])) / 2
+            (off_pts if lbl == "offense" else def_pts).append((cx, cy))
+
+        if not off_pts or not def_pts:
+            return
+
+        off_c = np.mean(off_pts, axis=0)
+        def_c = np.mean(def_pts, axis=0)
+        d_off = np.hypot(bx - off_c[0], by - off_c[1])
+        d_def = np.hypot(bx - def_c[0], by - def_c[1])
+
+        # vote 1 = current "offense" cluster is actually farther from ball (needs swap)
+        self._ball_votes.append(1 if d_def < d_off else 0)
+        if len(self._ball_votes) > self._VOTE_WIN:
+            self._ball_votes.pop(0)
+
+        if sum(self._ball_votes) > len(self._ball_votes) // 2:
+            self._offense_cluster ^= 1
+            self._ball_votes.clear()
+
     def swap_labels(self):
-        """Swap team_a and team_b if the assignment came out backwards."""
-        if self._centroids is not None:
-            self._centroids = self._centroids[[1, 0]]
+        """Manually flip which cluster is offense vs defense."""
+        self._offense_cluster ^= 1
 
 
 # ------------------------------------------------------------------
@@ -164,7 +204,7 @@ if __name__ == "__main__":
     classifier = TeamClassifier()
     fitted = False
 
-    COLORS = {"team_a": (0, 200, 255), "team_b": (255, 100, 0), "unknown": (128, 128, 128)}
+    COLORS = {"offense": (0, 200, 255), "defense": (255, 100, 0), "unknown": (128, 128, 128)}
 
     cap = cv2.VideoCapture(video_path)
     frame_num = 0
@@ -197,10 +237,10 @@ if __name__ == "__main__":
                 tid = int(box[4])
                 color = COLORS[label]
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-                cv2.putText(frame, f"{label[5:].upper()}{tid}", (x1, y1 - 8),
+                cv2.putText(frame, f"{label.upper()} #{tid}", (x1, y1 - 8),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
 
-        cv2.putText(frame, f"Frame {frame_num}  A=orange  B=blue",
+        cv2.putText(frame, f"Frame {frame_num}  offense=blue  defense=orange",
                     (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
         cv2.imshow("Team Classifier", frame)
         if cv2.waitKey(1) & 0xFF in (ord("q"), 27):
