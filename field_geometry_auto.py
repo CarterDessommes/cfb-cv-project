@@ -47,11 +47,6 @@ def line_angle_deg(line: Line) -> float:
     return float(angle)
 
 
-def line_length(line: Line) -> float:
-    x1, y1, x2, y2 = line
-    return float(np.hypot(x2 - x1, y2 - y1))
-
-
 def split_line_families(lines: Sequence[Line]) -> Tuple[List[Line], List[Line]]:
     """Split lines into two orientation families using 1D k-means on angle."""
     if len(lines) < 2:
