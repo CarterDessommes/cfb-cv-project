@@ -11,7 +11,7 @@ Defaults:
     --ball       weights/ball-best.pt
     --conf       0.4
     --ocr-every  5   (run jersey OCR every Nth frame; reuse cached numbers between)
-    --ball-every 1   (run ball detector every Nth frame; reuse last position between)
+    --ball-every 2   (run ball detector every Nth frame; reuse last position between)
 """
 
 import sys
@@ -21,6 +21,7 @@ from collections import Counter
 
 from team_classifier import TeamClassifier, _best_device
 from field_mapper import project_players, build_field_canvas, load_homographies, CANVAS_SCALE
+from yolo_utils import boxes_to_cpu_arrays
 
 _NUMBER_HISTORY: dict[int, list[str]] = {}
 _VOTE_WINDOW = 15
@@ -72,16 +73,21 @@ class BallDetector:
 
         self.model  = YOLO(model_path)
         self.device = _best_device()
+        self.predict_kwargs = {"device": self.device, "verbose": False, "half": True}
+
+    def warmup(self, frame_shape):
+        dummy = np.zeros(frame_shape, dtype=np.uint8)
+        self.model(dummy, **self.predict_kwargs)
 
     def detect(self, frame) -> tuple[float, float] | None:
         """Returns (cx, cy) pixel coords of the highest-confidence ball, or None."""
-        results = self.model(frame, device=self.device, verbose=False)
-        boxes = results[0].boxes
-        if boxes is None or len(boxes) == 0:
+        results = self.model(frame, **self.predict_kwargs)
+        xyxy, _, _, confs = boxes_to_cpu_arrays(results[0].boxes)
+        if xyxy is None or confs is None or len(confs) == 0:
             return None
-        idx = int(boxes.conf.argmax())
-        xyxy = boxes.xyxy[idx].cpu().numpy()
-        return float((xyxy[0] + xyxy[2]) / 2), float((xyxy[1] + xyxy[3]) / 2)
+        idx = int(confs.argmax())
+        box = xyxy[idx]
+        return float((box[0] + box[2]) / 2), float((box[1] + box[3]) / 2)
 
 
 class JerseyOCR:
@@ -90,17 +96,22 @@ class JerseyOCR:
 
         self.model  = YOLO(model_path)
         self.device = _best_device()
+        self.predict_kwargs = {"device": self.device, "verbose": False}
+
+    def warmup(self):
+        dummy = np.zeros((32, 32, 3), dtype=np.uint8)
+        self.model([dummy], **self.predict_kwargs)
 
     def predict(self, crops: list) -> list[str]:
         if not crops:
             return []
-        results = self.model(crops, device=self.device, verbose=False)
+        results = self.model(crops, **self.predict_kwargs)
         return [r.names[r.probs.top1] for r in results]
 
 
 def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=None,
                  output_path=None, conf=0.4, ocr_warning=False,
-                 ocr_every=5, ball_every=1):
+                 ocr_every=5, ball_every=2):
     from ultralytics import YOLO
 
     _NUMBER_HISTORY.clear()
@@ -119,6 +130,13 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
     width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     total  = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    if width > 0 and height > 0:
+        dummy_frame = np.zeros((height, width, 3), dtype=np.uint8)
+        detector(dummy_frame, device=device, half=True, verbose=False)
+        if ball_detector:
+            ball_detector.warmup(dummy_frame.shape)
+    ocr.warmup()
 
     writer = None
 
@@ -147,10 +165,8 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
         )
 
         boxes = []
-        if results[0].boxes is not None and results[0].boxes.id is not None:
-            xyxy = results[0].boxes.xyxy.cpu().numpy()
-            ids  = results[0].boxes.id.cpu().numpy().astype(int)
-            clss = results[0].boxes.cls.cpu().numpy().astype(int)
+        xyxy, ids, clss, _ = boxes_to_cpu_arrays(results[0].boxes)
+        if xyxy is not None and ids is not None and clss is not None:
             for box, tid, cls in zip(xyxy, ids, clss):
                 if cls == 0:  # players only
                     boxes.append([*box, tid, cls])
@@ -319,7 +335,7 @@ if __name__ == "__main__":
     conf        = 0.4
     ocr_warning = False
     ocr_every   = 5
-    ball_every  = 1
+    ball_every  = 2
 
     i = 2
     while i < len(sys.argv):
