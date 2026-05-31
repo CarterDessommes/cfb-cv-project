@@ -2,13 +2,16 @@
 Full field-state pipeline: player location + team + jersey number.
 
 Usage:
-    python pipeline.py <video> [--det PATH] [--ocr PATH] [--ball PATH] [--out FILE] [--conf N] [--no-ball]
+    python pipeline.py <video> [--det PATH] [--ocr PATH] [--ball PATH] [--out FILE]
+                              [--conf N] [--no-ball] [--ocr-every N] [--ball-every N]
 
 Defaults:
-    --det  weights/player-best.pt
-    --ocr  weights/jersey_ocr.pt
-    --ball weights/ball-best.pt
-    --conf 0.4
+    --det        weights/player-best.pt
+    --ocr        weights/jersey_ocr.pt
+    --ball       weights/ball-best.pt
+    --conf       0.4
+    --ocr-every  5   (run jersey OCR every Nth frame; reuse cached numbers between)
+    --ball-every 1   (run ball detector every Nth frame; reuse last position between)
 """
 
 import sys
@@ -30,6 +33,11 @@ def _stable_number(track_id: int, prediction: str) -> str:
     if len(history) > _VOTE_WINDOW:
         history.pop(0)
     return Counter(history).most_common(1)[0][0]
+
+
+def _due(frame_num: int, every: int) -> bool:
+    """True on frames where a throttled model should run (frames 1, 1+every, ...)."""
+    return every <= 1 or frame_num % every == 1
 
 
 COLORS = {
@@ -88,7 +96,8 @@ class JerseyOCR:
 
 
 def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=None,
-                 output_path=None, conf=0.4, ocr_warning=False):
+                 output_path=None, conf=0.4, ocr_warning=False,
+                 ocr_every=5, ball_every=1):
     _NUMBER_HISTORY.clear()
     detector      = YOLO(det_model_path)
     classifier    = TeamClassifier()
@@ -110,6 +119,9 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
     cv2.namedWindow(window, cv2.WINDOW_NORMAL)
 
     frame_num = 0
+    ball_xy: tuple[float, float] | None = None   # persisted across throttled frames
+    cluster_by_id: dict[int, int] = {}           # track_id -> team cluster (0/1)
+    number_by_id:  dict[int, str] = {}           # track_id -> stable jersey number
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
@@ -133,22 +145,42 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
         if boxes and not fitted:
             fitted = classifier.fit(frame, boxes)
 
-        team_labels = classifier.classify(frame, boxes) if fitted and boxes else ["unknown"] * len(boxes)
+        # ── Team: classify only newly-seen track_ids; cache cluster by id ─────
+        # A player's team is fixed for the life of its track, so SigLIP runs once
+        # per track (event-driven) instead of every frame.
+        if fitted and boxes:
+            new = [b for b in boxes if int(b[4]) not in cluster_by_id]
+            if new:
+                for b, c in zip(new, classifier.assign_clusters(frame, new)):
+                    if c >= 0:
+                        cluster_by_id[int(b[4])] = c
 
-        ball_xy = ball_detector.detect(frame) if ball_detector else None
+        # ── Ball: throttled, persisted across skip frames ─────────────────────
+        if ball_detector and _due(frame_num, ball_every):
+            ball_xy = ball_detector.detect(frame)
+
+        # Labels derived from cached clusters (free); the ball-vote is pure
+        # geometry so it runs every frame and a flip re-labels everyone instantly.
+        def _labels():
+            return ([classifier.cluster_to_label(cluster_by_id.get(int(b[4]), -1)) for b in boxes]
+                    if fitted else ["unknown"] * len(boxes))
+        team_labels = _labels()
         if fitted and boxes:
             classifier.update_offense_from_ball(ball_xy, boxes, team_labels)
-            # Re-classify after a potential label flip so this frame reflects the update
-            team_labels = classifier.classify(frame, boxes)
+            team_labels = _labels()  # re-derive after a potential flip (no NN cost)
 
-        crops, valid_idx = _crops(frame, boxes)
-        ocr_preds  = ocr.predict(crops)
-        number_map = {valid_idx[j]: ocr_preds[j] for j in range(len(ocr_preds))}
+        # ── Jersey OCR: throttled, cached by track_id with _stable_number ─────
+        if _due(frame_num, ocr_every):
+            crops, valid_idx = _crops(frame, boxes)
+            ocr_preds = ocr.predict(crops)
+            for j, pred in enumerate(ocr_preds):
+                tid = int(boxes[valid_idx[j]][4])
+                number_by_id[tid] = _stable_number(tid, pred)
 
         field_state = []
         for i, (box, team) in enumerate(zip(boxes, team_labels)):
             track_id = int(box[4])
-            number   = number_map.get(i, "?")
+            number   = number_by_id.get(track_id, "?")
             field_state.append({
                 "track_id": track_id,
                 "bbox":     [int(v) for v in box[:4]],
@@ -235,7 +267,8 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python pipeline.py <video> [--det PATH] [--ocr PATH] [--out FILE] [--conf N]")
+        print("Usage: python pipeline.py <video> [--det PATH] [--ocr PATH] [--out FILE] "
+              "[--conf N] [--ocr-every N] [--ball-every N]")
         sys.exit(1)
 
     video       = sys.argv[1]
@@ -245,6 +278,8 @@ if __name__ == "__main__":
     out_path    = None
     conf        = 0.4
     ocr_warning = False
+    ocr_every   = 5
+    ball_every  = 1
 
     i = 2
     while i < len(sys.argv):
@@ -260,9 +295,14 @@ if __name__ == "__main__":
             out_path = sys.argv[i + 1]; i += 2
         elif sys.argv[i] == "--conf" and i + 1 < len(sys.argv):
             conf = float(sys.argv[i + 1]); i += 2
+        elif sys.argv[i] == "--ocr-every" and i + 1 < len(sys.argv):
+            ocr_every = int(sys.argv[i + 1]); i += 2
+        elif sys.argv[i] == "--ball-every" and i + 1 < len(sys.argv):
+            ball_every = int(sys.argv[i + 1]); i += 2
         elif sys.argv[i] == "--ocr-warning":
             ocr_warning = True; i += 1
         else:
             i += 1
 
-    run_pipeline(video, det_model, ocr_model, ball_model, out_path, conf, ocr_warning)
+    run_pipeline(video, det_model, ocr_model, ball_model, out_path, conf, ocr_warning,
+                 ocr_every=ocr_every, ball_every=ball_every)
