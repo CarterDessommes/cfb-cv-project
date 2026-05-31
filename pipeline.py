@@ -18,7 +18,6 @@ import sys
 import cv2
 import numpy as np
 from collections import Counter
-from ultralytics import YOLO
 
 from team_classifier import TeamClassifier, _best_device
 from field_mapper import project_players, build_field_canvas, load_homographies, CANVAS_SCALE
@@ -69,6 +68,8 @@ def _crops(frame, boxes):
 
 class BallDetector:
     def __init__(self, model_path: str):
+        from ultralytics import YOLO
+
         self.model  = YOLO(model_path)
         self.device = _best_device()
 
@@ -85,6 +86,8 @@ class BallDetector:
 
 class JerseyOCR:
     def __init__(self, model_path: str):
+        from ultralytics import YOLO
+
         self.model  = YOLO(model_path)
         self.device = _best_device()
 
@@ -98,6 +101,8 @@ class JerseyOCR:
 def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=None,
                  output_path=None, conf=0.4, ocr_warning=False,
                  ocr_every=5, ball_every=1):
+    from ultralytics import YOLO
+
     _NUMBER_HISTORY.clear()
     _TRAIL: dict[int, list] = {}   # track_id -> list of (cx, cy) canvas points
     _BALL_TRAIL: list = []         # list of (bx, by) ball canvas points
