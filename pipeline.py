@@ -59,9 +59,9 @@ def _crops(frame, boxes):
         ty2 = y1 + int(h * 0.50)
         crop = frame[ty1:ty2, x1:x2]
         if crop.shape[0] >= _MIN_CROP_PX and crop.shape[1] >= _MIN_CROP_PX:
-            # Grayscale → 3-channel so YOLO classifier still gets RGB input shape
+            # Grayscale -> 3-channel so YOLO classifier still gets RGB input shape
             gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-            crop = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+            crop = np.repeat(gray[:, :, None], 3, axis=2)
             crops.append(crop)
             indices.append(i)
     return crops, indices
@@ -195,8 +195,8 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
                     if fitted else ["unknown"] * len(boxes))
         team_labels = _labels()
         if fitted and boxes:
-            classifier.update_offense_from_ball(ball_xy, boxes, team_labels)
-            team_labels = _labels()  # re-derive after a potential flip (no NN cost)
+            if classifier.update_offense_from_ball(ball_xy, boxes, team_labels):
+                team_labels = _labels()  # re-derive after a flip (no NN cost)
 
         # ── Jersey OCR: throttled, cached by track_id with _stable_number ─────
         if _due(frame_num, ocr_every):
@@ -207,38 +207,42 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
                 number_by_id[tid] = _stable_number(tid, pred)
 
         field_state = []
+        detections_for_mapper = []
         for i, (box, team) in enumerate(zip(boxes, team_labels)):
             track_id = int(box[4])
             number   = number_by_id.get(track_id, "?")
+            bbox     = [int(v) for v in box[:4]]
             field_state.append({
                 "track_id": track_id,
-                "bbox":     [int(v) for v in box[:4]],
+                "bbox":     bbox,
                 "team":     team,
                 "number":   number,
             })
+            detections_for_mapper.append({
+                "track_id": track_id,
+                "bbox":     bbox,
+                "class":    0,
+            })
 
-            x1, y1, x2, y2 = [int(v) for v in box[:4]]
+            x1, y1, x2, y2 = bbox
             color = COLORS[team]
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
             cv2.putText(frame, f"{team.upper()} #{number}",
                         (x1, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
         # ── Field mapping: project players to top-down field coords ─────────
-        detections_for_mapper = [
-            {"track_id": p["track_id"], "bbox": p["bbox"], "class": 0}
-            for p in field_state
-        ]
         field_points = project_players(
             frame_num=frame_num - 1,   # frame_num is 1-indexed; npz is 0-indexed
             detections=detections_for_mapper,
             homography=homography,
         )
         # Add field coords back to field_state
-        fp_by_id = {p["track_id"]: p for p in field_points}
         for p in field_state:
-            fp = fp_by_id.get(p["track_id"])
-            p["field_x"] = fp["field_x"] if fp else None
-            p["field_y"] = fp["field_y"] if fp else None
+            p["field_x"] = None
+            p["field_y"] = None
+        for p, fp in zip(field_state, field_points):
+            p["field_x"] = fp["field_x"]
+            p["field_y"] = fp["field_y"]
 
         # ── Top-down canvas ───────────────────────────────────────────────────
         canvas = base_canvas.copy()
