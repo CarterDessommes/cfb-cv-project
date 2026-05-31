@@ -90,6 +90,9 @@ class JerseyOCR:
 def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=None,
                  output_path=None, conf=0.4, ocr_warning=False):
     _NUMBER_HISTORY.clear()
+    _TRAIL: dict[int, list] = {}   # track_id -> list of (cx, cy) canvas points
+    _BALL_TRAIL: list = []         # list of (bx, by) ball canvas points
+    _TRAIL_MAX = 45
     detector      = YOLO(det_model_path)
     classifier    = TeamClassifier()
     ocr           = JerseyOCR(ocr_model_path)
@@ -103,8 +106,6 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
     total  = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     writer = None
-    if output_path:
-        writer = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
 
     window = "Field State"
     cv2.namedWindow(window, cv2.WINDOW_NORMAL)
@@ -194,10 +195,25 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
             cx = int(fp["field_x"] * CANVAS_SCALE)
             cy = int(fp["field_y"] * CANVAS_SCALE)
             color = team_color_map.get(p["team"], (128, 128, 128))
+
+            trail = _TRAIL.setdefault(p["track_id"], [])
+            trail.append((cx, cy))
+            for j in range(1, len(trail)):
+                cv2.line(canvas, trail[j - 1], trail[j], color, 1)
+
             cv2.circle(canvas, (cx, cy), 7, color, -1)
             cv2.circle(canvas, (cx, cy), 7, (255, 255, 255), 1)
             cv2.putText(canvas, str(p["track_id"]), (cx + 8, cy + 4),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
+
+        if ball_xy:
+            bx_c = int(ball_xy[0] / frame.shape[1] * canvas.shape[1])
+            by_c = int(ball_xy[1] / frame.shape[0] * canvas.shape[0])
+            _BALL_TRAIL.append((bx_c, by_c))
+            if len(_BALL_TRAIL) > _TRAIL_MAX:
+                _BALL_TRAIL.pop(0)
+            for j in range(1, len(_BALL_TRAIL)):
+                cv2.line(canvas, _BALL_TRAIL[j - 1], _BALL_TRAIL[j], (0, 255, 0), 1)
 
         # Resize canvas to match frame height and show side by side
         target_h = frame.shape[0]
@@ -216,6 +232,9 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
             cv2.putText(combined, "WARNING: jersey # accuracy is low (experimental)",
                         (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
+        if output_path and writer is None:
+            h_out, w_out = combined.shape[:2]
+            writer = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w_out, h_out))
         if writer:
             writer.write(combined)
 
@@ -230,6 +249,15 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
     cap.release()
     if writer:
         writer.release()
+
+    # Save final top-down route map
+    if output_path:
+        import os
+        base = os.path.splitext(output_path)[0]
+        route_path = base + "_routes.png"
+        cv2.imwrite(route_path, canvas)
+        print(f"Saved route map: {route_path}")
+
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
