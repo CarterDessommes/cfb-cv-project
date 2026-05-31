@@ -178,11 +178,6 @@ class TeamClassifier:
             self._offense_cluster ^= 1
             self._ball_votes.clear()
 
-    def swap_labels(self):
-        """Manually flip which cluster is offense vs defense."""
-        self._offense_cluster ^= 1
-
-
 # ------------------------------------------------------------------
 # Quick visual test:  python team_classifier.py <video> [--model PATH]
 # ------------------------------------------------------------------

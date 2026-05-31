@@ -87,6 +87,22 @@ def get_homography_npz(frame_num: int, H_array: np.ndarray, valid: np.ndarray) -
     return H_array[frame_num].copy()
 
 
+def load_homographies(homography_path: str | Path):
+    """Load homography data once. Returns a source handle to pass to project_players."""
+    homography_path = Path(homography_path)
+    if homography_path.suffix == ".npz":
+        H_array, valid = load_homography_npz(homography_path)
+        return ("npz", H_array, valid)
+    return ("summary", load_homography_index(homography_path))
+
+
+def _homography_for_frame(source, frame_num: int) -> Optional[np.ndarray]:
+    """Look up H for frame_num from a pre-loaded source handle (no disk I/O)."""
+    if source[0] == "npz":
+        return get_homography_npz(frame_num, source[1], source[2])
+    return get_homography_for_frame(frame_num, source[1])
+
+
 # -- Foot-point extraction + VP correction --
 
 def bbox_foot(bbox: List[float]) -> Tuple[float, float]:
@@ -153,7 +169,7 @@ def project_to_field(
 def project_players(
     frame_num: int,
     detections: List[Detection],
-    homography_path: str | Path = "homographies.npz",
+    homography,
     vp: Optional[Tuple[float, float]] = None,
     snap_to_yard_lines: bool = False,
     yard_line_xs_px: Optional[List[float]] = None,
@@ -161,17 +177,13 @@ def project_players(
     """
     Project all detected players in a frame to field coordinates.
 
+    `homography` is a pre-loaded source handle from load_homographies(...);
+    it is indexed in memory per frame (no per-call disk I/O).
+
     Returns list of FieldPoint dicts:
       {"track_id", "class", "foot_px": [u,v], "field_x", "field_y", "in_bounds"}
     """
-    homography_path = Path(homography_path)
-    if homography_path.suffix == ".npz":
-        H_array, valid = load_homography_npz(homography_path)
-        H = get_homography_npz(frame_num, H_array, valid)
-    else:
-        index = load_homography_index(homography_path)
-        H = get_homography_for_frame(frame_num, index)
-
+    H = _homography_for_frame(homography, frame_num)
     if H is None:
         return []
 
@@ -228,58 +240,3 @@ def build_field_canvas(scale: int = CANVAS_SCALE) -> np.ndarray:
         cv2.putText(canvas, label, (int(x_yd * scale) - 8, h // 2),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     return canvas
-
-
-_COLORS = {0: (0, 200, 255), 1: (0, 128, 255)}
-_OUT_COLOR = (80, 80, 80)
-
-
-def draw_players_on_canvas(
-    canvas: np.ndarray,
-    players: List[FieldPoint],
-    scale: int = CANVAS_SCALE,
-    draw_ids: bool = True,
-) -> np.ndarray:
-    """Draw projected player positions onto a top-down field canvas."""
-    out = canvas.copy()
-    for p in players:
-        cx = int(p["field_x"] * scale)
-        cy = int(p["field_y"] * scale)
-        color = _COLORS.get(p.get("class", 0), _COLORS[0]) if p.get("in_bounds", True) else _OUT_COLOR
-        cv2.circle(out, (cx, cy), 6, color, -1)
-        cv2.circle(out, (cx, cy), 6, (255, 255, 255), 1)
-        if draw_ids and p.get("track_id", -1) >= 0:
-            cv2.putText(out, str(p["track_id"]), (cx + 7, cy + 4),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
-    return out
-
-
-def overlay_broadcast_frame(
-    broadcast_frame: np.ndarray,
-    players: List[FieldPoint],
-    vp: Optional[Tuple[float, float]] = None,
-) -> np.ndarray:
-    """Draw foot dots and optional VP depth rays on the broadcast frame for debugging."""
-    out = broadcast_frame.copy()
-    for p in players:
-        fu, fv = int(p["foot_px"][0]), int(p["foot_px"][1])
-        color = _COLORS.get(p.get("class", 0), _COLORS[0])
-        cv2.circle(out, (fu, fv), 5, color, -1)
-        cv2.circle(out, (fu, fv), 5, (255, 255, 255), 1)
-        if vp is not None:
-            vpu, vpv = vp
-            dx, dy = vpu - fu, vpv - fv
-            L = math.hypot(dx, dy)
-            if L > 0:
-                ray_len = min(40.0, L * 0.2)
-                cv2.arrowedLine(out, (fu, fv),
-                                (int(fu + (dx / L) * ray_len), int(fv + (dy / L) * ray_len)),
-                                (0, 255, 255), 1, tipLength=0.3)
-        if p.get("track_id", -1) >= 0:
-            cv2.putText(out, str(p["track_id"]), (fu + 6, fv - 4),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
-    if vp is not None:
-        vpu, vpv = int(vp[0]), int(vp[1])
-        cv2.drawMarker(out, (vpu, vpv), (0, 0, 255), cv2.MARKER_CROSS, 20, 2)
-        cv2.putText(out, "VP", (vpu + 8, vpv - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-    return out

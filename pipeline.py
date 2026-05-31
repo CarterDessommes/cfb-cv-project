@@ -18,7 +18,7 @@ from collections import Counter
 from ultralytics import YOLO
 
 from team_classifier import TeamClassifier, _best_device
-from field_mapper import project_players, build_field_canvas, draw_players_on_canvas, CANVAS_SCALE
+from field_mapper import project_players, build_field_canvas, load_homographies, CANVAS_SCALE
 
 _NUMBER_HISTORY: dict[int, list[str]] = {}
 _VOTE_WINDOW = 15
@@ -94,6 +94,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
     _BALL_TRAIL: list = []         # list of (bx, by) ball canvas points
     _TRAIL_MAX = 45
     detector      = YOLO(det_model_path)
+    device        = _best_device()
     classifier    = TeamClassifier()
     ocr           = JerseyOCR(ocr_model_path)
     ball_detector = BallDetector(ball_model_path) if ball_model_path else None
@@ -110,6 +111,12 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
     window = "Field State"
     cv2.namedWindow(window, cv2.WINDOW_NORMAL)
 
+    # Static top-down field background — built once, copied each frame
+    base_canvas = build_field_canvas(scale=CANVAS_SCALE)
+
+    # Load homographies once; indexed per frame in memory inside the loop.
+    homography = load_homographies("homographies.npz")
+
     frame_num = 0
     while cap.isOpened():
         ret, frame = cap.read()
@@ -119,7 +126,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
 
         results = detector.track(
             frame, persist=True, conf=conf, verbose=False,
-            device=_best_device(), half=True,
+            device=device, half=True,
         )
 
         boxes = []
@@ -149,8 +156,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
         field_state = []
         for i, (box, team) in enumerate(zip(boxes, team_labels)):
             track_id = int(box[4])
-            raw      = number_map.get(i, "?")
-            number   = _stable_number(track_id, raw) if raw != "?" else "?"
+            number   = number_map.get(i, "?")
             field_state.append({
                 "track_id": track_id,
                 "bbox":     [int(v) for v in box[:4]],
@@ -172,7 +178,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
         field_points = project_players(
             frame_num=frame_num - 1,   # frame_num is 1-indexed; npz is 0-indexed
             detections=detections_for_mapper,
-            homography_path="homographies.npz",
+            homography=homography,
         )
         # Add field coords back to field_state
         fp_by_id = {p["track_id"]: p for p in field_points}
@@ -182,7 +188,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
             p["field_y"] = fp["field_y"] if fp else None
 
         # ── Top-down canvas ───────────────────────────────────────────────────
-        canvas = build_field_canvas(scale=CANVAS_SCALE)
+        canvas = base_canvas.copy()
         # Color dots by team
         team_color_map = {
             "offense": (0, 200, 255),
