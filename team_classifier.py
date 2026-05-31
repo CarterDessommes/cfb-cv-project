@@ -18,8 +18,6 @@ import numpy as np
 import torch
 from PIL import Image
 from transformers import AutoImageProcessor, SiglipVisionModel
-from umap import UMAP
-from sklearn.cluster import KMeans
 
 
 _MODEL_ID = "google/siglip-base-patch16-224"
@@ -49,9 +47,10 @@ class TeamClassifier:
         self.model = SiglipVisionModel.from_pretrained(_MODEL_ID).to(self.device)
         self.model.eval()
 
-        self._umap: UMAP | None = None
-        self._kmeans: KMeans | None = None
+        self._umap = None
+        self._kmeans = None
         self._centroids: np.ndarray | None = None  # centroids in raw embedding space
+        self._track_clusters: dict[int, int] = {}
 
         # 0 or 1 — which K-Means cluster is currently labeled "offense"
         self._offense_cluster: int = 0
@@ -73,6 +72,16 @@ class TeamClassifier:
                 indices.append(i)
         return crops, indices
 
+    @staticmethod
+    def _track_id(box) -> int | None:
+        """Return the tracker id from a detection box, if one is present."""
+        if len(box) < 5:
+            return None
+        try:
+            return int(box[4])
+        except (TypeError, ValueError):
+            return None
+
     @torch.no_grad()
     def _embed(self, crops: list) -> np.ndarray:
         """Run SigLIP vision encoder on a list of BGR crops. Returns (N, D) array."""
@@ -80,6 +89,14 @@ class TeamClassifier:
         inputs = self.processor(images=pil, return_tensors="pt").to(self.device)
         outputs = self.model(**inputs)
         return outputs.pooler_output.cpu().float().numpy()  # (N, 768)
+
+    def _cluster_for_embedding(self, emb: np.ndarray) -> int:
+        d0 = np.linalg.norm(emb - self._centroids[0])
+        d1 = np.linalg.norm(emb - self._centroids[1])
+        return 0 if d0 <= d1 else 1
+
+    def _label_for_cluster(self, cluster: int) -> str:
+        return "offense" if cluster == self._offense_cluster else "defense"
 
     # ------------------------------------------------------------------
     # Public API
@@ -91,10 +108,13 @@ class TeamClassifier:
         boxes: list of [x1, y1, x2, y2, ...] — extra fields are ignored.
         Returns True on success, False if too few players were found.
         """
-        crops, _ = self._crops(frame, boxes)
+        crops, valid_idx = self._crops(frame, boxes)
         if len(crops) < 4:
             print(f"fit: only {len(crops)} valid crops, need at least 4 — skipping")
             return False
+
+        from sklearn.cluster import KMeans
+        from umap import UMAP
 
         print(f"fit: embedding {len(crops)} player crops...")
         embeddings = self._embed(crops)  # (N, 768)
@@ -114,6 +134,11 @@ class TeamClassifier:
             embeddings[labels == 0].mean(axis=0),
             embeddings[labels == 1].mean(axis=0),
         ])
+        self._track_clusters.clear()
+        for box_idx, cluster in zip(valid_idx, labels):
+            track_id = self._track_id(boxes[box_idx])
+            if track_id is not None:
+                self._track_clusters[track_id] = int(cluster)
 
         print("fit: done — centroids locked")
         return True
@@ -133,24 +158,37 @@ class TeamClassifier:
         if not crops:
             return out
 
-        embeddings = self._embed(crops)  # (N, 768)
-        for i, (emb, box_idx) in enumerate(zip(embeddings, valid_idx)):
-            d0 = np.linalg.norm(emb - self._centroids[0])
-            d1 = np.linalg.norm(emb - self._centroids[1])
-            cluster = 0 if d0 <= d1 else 1
-            out[box_idx] = "offense" if cluster == self._offense_cluster else "defense"
+        uncached_crops = []
+        uncached_box_idx = []
+        for crop, box_idx in zip(crops, valid_idx):
+            track_id = self._track_id(boxes[box_idx])
+            if track_id is not None and track_id in self._track_clusters:
+                out[box_idx] = self._label_for_cluster(self._track_clusters[track_id])
+            else:
+                uncached_crops.append(crop)
+                uncached_box_idx.append(box_idx)
+
+        if uncached_crops:
+            embeddings = self._embed(uncached_crops)  # (N, 768)
+            for emb, box_idx in zip(embeddings, uncached_box_idx):
+                cluster = self._cluster_for_embedding(emb)
+                track_id = self._track_id(boxes[box_idx])
+                if track_id is not None:
+                    self._track_clusters[track_id] = cluster
+                out[box_idx] = self._label_for_cluster(cluster)
 
         return out
 
-    def update_offense_from_ball(self, ball_xy, boxes: list, labels: list[str]) -> None:
+    def update_offense_from_ball(self, ball_xy, boxes: list, labels: list[str]) -> bool:
         """
         Call after classify() each frame. Votes over a rolling window on which
         cluster is actually offense (closer to the ball). Flips the assignment
         once a majority is reached so the classifier self-corrects.
         ball_xy: (cx, cy) in pixel coords, or None if ball not detected.
+        Returns True when the offense/defense label assignment changed.
         """
         if ball_xy is None or self._centroids is None:
-            return
+            return False
 
         bx, by = float(ball_xy[0]), float(ball_xy[1])
         off_pts, def_pts = [], []
@@ -162,7 +200,7 @@ class TeamClassifier:
             (off_pts if lbl == "offense" else def_pts).append((cx, cy))
 
         if not off_pts or not def_pts:
-            return
+            return False
 
         off_c = np.mean(off_pts, axis=0)
         def_c = np.mean(def_pts, axis=0)
@@ -177,6 +215,12 @@ class TeamClassifier:
         if sum(self._ball_votes) > len(self._ball_votes) // 2:
             self._offense_cluster ^= 1
             self._ball_votes.clear()
+            return True
+        return False
+
+    def forget(self, track_id: int) -> None:
+        """Drop a cached track id if the tracker recycles it."""
+        self._track_clusters.pop(int(track_id), None)
 
 # ------------------------------------------------------------------
 # Quick visual test:  python team_classifier.py <video> [--model PATH]

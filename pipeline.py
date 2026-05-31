@@ -15,7 +15,6 @@ import sys
 import cv2
 import numpy as np
 from collections import Counter
-from ultralytics import YOLO
 
 from team_classifier import TeamClassifier, _best_device
 from field_mapper import project_players, build_field_canvas, load_homographies, CANVAS_SCALE
@@ -61,6 +60,8 @@ def _crops(frame, boxes):
 
 class BallDetector:
     def __init__(self, model_path: str):
+        from ultralytics import YOLO
+
         self.model  = YOLO(model_path)
         self.device = _best_device()
 
@@ -77,6 +78,8 @@ class BallDetector:
 
 class JerseyOCR:
     def __init__(self, model_path: str):
+        from ultralytics import YOLO
+
         self.model  = YOLO(model_path)
         self.device = _best_device()
 
@@ -87,8 +90,18 @@ class JerseyOCR:
         return [r.names[r.probs.top1] for r in results]
 
 
+def _swap_offense_defense(labels: list[str]) -> list[str]:
+    """Relabel current-frame roles after the classifier flips cluster ownership."""
+    return [
+        "defense" if label == "offense" else "offense" if label == "defense" else label
+        for label in labels
+    ]
+
+
 def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=None,
                  output_path=None, conf=0.4, ocr_warning=False):
+    from ultralytics import YOLO
+
     _NUMBER_HISTORY.clear()
     detector      = YOLO(det_model_path)
     device        = _best_device()
@@ -144,9 +157,8 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
 
         ball_xy = ball_detector.detect(frame) if ball_detector else None
         if fitted and boxes:
-            classifier.update_offense_from_ball(ball_xy, boxes, team_labels)
-            # Re-classify after a potential label flip so this frame reflects the update
-            team_labels = classifier.classify(frame, boxes)
+            if classifier.update_offense_from_ball(ball_xy, boxes, team_labels):
+                team_labels = _swap_offense_defense(team_labels)
 
         crops, valid_idx = _crops(frame, boxes)
         ocr_preds  = ocr.predict(crops)
