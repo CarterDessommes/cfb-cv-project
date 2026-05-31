@@ -109,6 +109,9 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
     window = "Field State"
     cv2.namedWindow(window, cv2.WINDOW_NORMAL)
 
+    # Static top-down field background — built once, copied each frame
+    base_canvas = build_field_canvas(scale=CANVAS_SCALE)
+
     frame_num = 0
     while cap.isOpened():
         ret, frame = cap.read()
@@ -180,7 +183,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
             p["field_y"] = fp["field_y"] if fp else None
 
         # ── Top-down canvas ───────────────────────────────────────────────────
-        canvas = build_field_canvas(scale=CANVAS_SCALE)
+        canvas = base_canvas.copy()
         # Color dots by team
         team_color_map = {
             "offense": (0, 200, 255),
