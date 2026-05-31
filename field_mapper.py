@@ -87,6 +87,22 @@ def get_homography_npz(frame_num: int, H_array: np.ndarray, valid: np.ndarray) -
     return H_array[frame_num].copy()
 
 
+def load_homographies(homography_path: str | Path):
+    """Load homography data once. Returns a source handle to pass to project_players."""
+    homography_path = Path(homography_path)
+    if homography_path.suffix == ".npz":
+        H_array, valid = load_homography_npz(homography_path)
+        return ("npz", H_array, valid)
+    return ("summary", load_homography_index(homography_path))
+
+
+def _homography_for_frame(source, frame_num: int) -> Optional[np.ndarray]:
+    """Look up H for frame_num from a pre-loaded source handle (no disk I/O)."""
+    if source[0] == "npz":
+        return get_homography_npz(frame_num, source[1], source[2])
+    return get_homography_for_frame(frame_num, source[1])
+
+
 # -- Foot-point extraction + VP correction --
 
 def bbox_foot(bbox: List[float]) -> Tuple[float, float]:
@@ -153,7 +169,7 @@ def project_to_field(
 def project_players(
     frame_num: int,
     detections: List[Detection],
-    homography_path: str | Path = "homographies.npz",
+    homography,
     vp: Optional[Tuple[float, float]] = None,
     snap_to_yard_lines: bool = False,
     yard_line_xs_px: Optional[List[float]] = None,
@@ -161,17 +177,13 @@ def project_players(
     """
     Project all detected players in a frame to field coordinates.
 
+    `homography` is a pre-loaded source handle from load_homographies(...);
+    it is indexed in memory per frame (no per-call disk I/O).
+
     Returns list of FieldPoint dicts:
       {"track_id", "class", "foot_px": [u,v], "field_x", "field_y", "in_bounds"}
     """
-    homography_path = Path(homography_path)
-    if homography_path.suffix == ".npz":
-        H_array, valid = load_homography_npz(homography_path)
-        H = get_homography_npz(frame_num, H_array, valid)
-    else:
-        index = load_homography_index(homography_path)
-        H = get_homography_for_frame(frame_num, index)
-
+    H = _homography_for_frame(homography, frame_num)
     if H is None:
         return []
 
