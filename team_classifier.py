@@ -179,6 +179,36 @@ class TeamClassifier:
 
         return out
 
+    def assign_clusters(self, frame: np.ndarray, boxes: list) -> list[int]:
+        """
+        Return the nearest-centroid cluster index (0 or 1) per box.
+        Returns -1 for boxes whose crops are invalid/too small.
+
+        Unlike classify(), this returns the raw cluster — not an offense/defense
+        label — so callers can cache it per track_id and re-derive the label each
+        frame from the current _offense_cluster (free, survives a vote flip).
+        """
+        if self._centroids is None:
+            raise RuntimeError("Call fit() before assign_clusters().")
+
+        crops, valid_idx = self._crops(frame, boxes)
+        out = [-1] * len(boxes)
+        if not crops:
+            return out
+
+        embeddings = self._embed(crops)  # (N, 768)
+        for emb, box_idx in zip(embeddings, valid_idx):
+            d0 = np.linalg.norm(emb - self._centroids[0])
+            d1 = np.linalg.norm(emb - self._centroids[1])
+            out[box_idx] = 0 if d0 <= d1 else 1
+        return out
+
+    def cluster_to_label(self, cluster: int) -> str:
+        """Map a cluster index (0/1, or -1 for unknown) to its team label."""
+        if cluster < 0:
+            return "unknown"
+        return self._label_for_cluster(cluster)
+
     def update_offense_from_ball(self, ball_xy, boxes: list, labels: list[str]) -> bool:
         """
         Call after classify() each frame. Votes over a rolling window on which
