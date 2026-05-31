@@ -22,6 +22,7 @@ from collections import Counter
 from team_classifier import TeamClassifier, _best_device
 from field_mapper import project_players, build_field_canvas, load_homographies, CANVAS_SCALE
 from yolo_utils import boxes_to_cpu_arrays
+from tracker import get_tracker_config_path
 
 _NUMBER_HISTORY: dict[int, list[str]] = {}
 _VOTE_WINDOW = 15
@@ -118,7 +119,8 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
     _TRAIL: dict[int, list] = {}   # track_id -> list of (cx, cy) canvas points
     _BALL_TRAIL: list = []         # list of (bx, by) ball canvas points
     _TRAIL_MAX = 45
-    detector      = YOLO(det_model_path)
+    detector       = YOLO(det_model_path)
+    tracker_config = get_tracker_config_path()
     device        = _best_device()
     classifier    = TeamClassifier()
     ocr           = JerseyOCR(ocr_model_path)
@@ -160,7 +162,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
         frame_num += 1
 
         results = detector.track(
-            frame, persist=True, conf=conf, verbose=False,
+            frame, tracker=tracker_config, persist=True, conf=conf, verbose=False,
             device=device, half=True,
         )
 
