@@ -11,7 +11,11 @@ Defaults:
     --ball       weights/ball-best.pt
     --conf       0.4
     --ocr-every  5   (run jersey OCR every Nth frame; reuse cached numbers between)
-    --ball-every 2   (run ball detector every Nth frame; reuse last position between)
+    --ball-every 2   (run ball tracker every Nth frame; reuse last position between.
+                      ROI passes are cheap, so 1 (every frame) is now affordable)
+    --ball-roi   320 (square px window cropped around the predicted ball; the crop is
+                      run at a reduced imgsz, so smaller = faster)
+    --ball-full-every 30 (force a full-frame re-acquire every N ball passes to fix drift)
 """
 
 import sys
@@ -68,27 +72,105 @@ def _crops(frame, boxes):
     return crops, indices
 
 
-class BallDetector:
-    def __init__(self, model_path: str):
+class BallTracker:
+    """Tracks the (single) ball with ROI-cropped detection + a constant-velocity
+    motion model, instead of re-running the ball net on the full frame every time.
+
+    The ball is small and sparse, so most frames only need a small crop around the
+    predicted position run at a reduced ``imgsz`` (YOLO inference cost scales with
+    ``imgsz``, not source resolution). A periodic full-frame pass re-acquires the
+    ball and corrects drift, and the motion model coasts through brief misses.
+    """
+
+    def __init__(self, model_path: str, ball_conf: float = 0.3,
+                 roi_size: int = 320, full_every: int = 30, max_coast: int = 3):
         from ultralytics import YOLO
 
         self.model  = YOLO(model_path)
         self.device = _best_device()
         self.predict_kwargs = {"device": self.device, "verbose": False, "half": True}
 
-    def warmup(self, frame_shape):
-        dummy = np.zeros(frame_shape, dtype=np.uint8)
-        self.model(dummy, **self.predict_kwargs)
+        self.ball_conf  = ball_conf
+        self.roi_size   = roi_size
+        # imgsz must be a multiple of 32; the crop is square so one size covers it.
+        self.roi_imgsz  = max(32, (roi_size // 32) * 32)
+        self.full_imgsz = 640
+        self.full_every = full_every
+        self.max_coast  = max_coast
 
-    def detect(self, frame) -> tuple[float, float] | None:
-        """Returns (cx, cy) pixel coords of the highest-confidence ball, or None."""
-        results = self.model(frame, **self.predict_kwargs)
-        xyxy, _, _, confs = boxes_to_cpu_arrays(results[0].boxes)
+        self.last_xy: tuple[float, float] | None = None
+        self.velocity = (0.0, 0.0)
+        self.misses = 0
+        self.frames_since_full = 0
+
+    def warmup(self, frame_shape):
+        full_dummy = np.zeros(frame_shape, dtype=np.uint8)
+        self.model(full_dummy, imgsz=self.full_imgsz, **self.predict_kwargs)
+        roi_dummy = np.zeros((self.roi_size, self.roi_size, 3), dtype=np.uint8)
+        self.model(roi_dummy, imgsz=self.roi_imgsz, **self.predict_kwargs)
+
+    def _best_center(self, boxes_obj, ox: float = 0.0, oy: float = 0.0):
+        """Center of the highest-confidence ball box, offset into full-frame coords."""
+        xyxy, _, _, confs = boxes_to_cpu_arrays(boxes_obj)
         if xyxy is None or confs is None or len(confs) == 0:
             return None
-        idx = int(confs.argmax())
-        box = xyxy[idx]
-        return float((box[0] + box[2]) / 2), float((box[1] + box[3]) / 2)
+        box = xyxy[int(confs.argmax())]
+        return float((box[0] + box[2]) / 2) + ox, float((box[1] + box[3]) / 2) + oy
+
+    def _detect_full(self, frame):
+        self.frames_since_full = 0
+        results = self.model(frame, imgsz=self.full_imgsz, conf=self.ball_conf,
+                             **self.predict_kwargs)
+        return self._best_center(results[0].boxes)
+
+    def _detect_roi(self, frame, px: float, py: float):
+        self.frames_since_full += 1
+        h, w = frame.shape[:2]
+        half = self.roi_size // 2
+        x1 = int(max(0, min(w - 1, px - half)))
+        y1 = int(max(0, min(h - 1, py - half)))
+        x2 = int(max(0, min(w, px + half)))
+        y2 = int(max(0, min(h, py + half)))
+        crop = frame[y1:y2, x1:x2]
+        if crop.shape[0] < 32 or crop.shape[1] < 32:
+            return self._detect_full(frame)   # degenerate crop near an edge
+        results = self.model(crop, imgsz=self.roi_imgsz, conf=self.ball_conf,
+                             **self.predict_kwargs)
+        det = self._best_center(results[0].boxes, ox=x1, oy=y1)
+        if det is None:
+            return self._detect_full(frame)   # lost it in the crop; re-acquire
+        return det
+
+    def update(self, frame) -> tuple[float, float] | None:
+        """Detect/predict the ball for this frame; returns (cx, cy) or None."""
+        use_full = (self.last_xy is None
+                    or self.misses >= self.max_coast
+                    or self.frames_since_full >= self.full_every)
+        if use_full:
+            det = self._detect_full(frame)
+        else:
+            px = self.last_xy[0] + self.velocity[0]
+            py = self.last_xy[1] + self.velocity[1]
+            det = self._detect_roi(frame, px, py)
+
+        if det is not None:
+            if self.last_xy is not None:
+                vx = det[0] - self.last_xy[0]
+                vy = det[1] - self.last_xy[1]
+                self.velocity = (0.5 * vx + 0.5 * self.velocity[0],
+                                 0.5 * vy + 0.5 * self.velocity[1])
+            self.last_xy = det
+            self.misses = 0
+        else:
+            self.misses += 1
+            if self.last_xy is not None and self.misses <= self.max_coast:
+                # Coast on last velocity so the next ROI stays centered.
+                self.last_xy = (self.last_xy[0] + self.velocity[0],
+                                self.last_xy[1] + self.velocity[1])
+            else:
+                self.last_xy = None
+                self.velocity = (0.0, 0.0)
+        return self.last_xy
 
 
 class JerseyOCR:
@@ -112,7 +194,7 @@ class JerseyOCR:
 
 def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=None,
                  output_path=None, conf=0.4, ocr_warning=False,
-                 ocr_every=5, ball_every=2):
+                 ocr_every=5, ball_every=2, ball_roi=320, ball_full_every=30):
     from ultralytics import YOLO
 
     _NUMBER_HISTORY.clear()
@@ -124,7 +206,9 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
     device        = _best_device()
     classifier    = TeamClassifier()
     ocr           = JerseyOCR(ocr_model_path)
-    ball_detector = BallDetector(ball_model_path) if ball_model_path else None
+    ball_tracker  = (BallTracker(ball_model_path, roi_size=ball_roi,
+                                 full_every=ball_full_every)
+                     if ball_model_path else None)
     fitted        = False
 
     cap    = cv2.VideoCapture(video_path)
@@ -136,8 +220,8 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
     if width > 0 and height > 0:
         dummy_frame = np.zeros((height, width, 3), dtype=np.uint8)
         detector(dummy_frame, device=device, half=True, verbose=False)
-        if ball_detector:
-            ball_detector.warmup(dummy_frame.shape)
+        if ball_tracker:
+            ball_tracker.warmup(dummy_frame.shape)
     ocr.warmup()
 
     writer = None
@@ -186,9 +270,9 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
                     if c >= 0:
                         cluster_by_id[int(b[4])] = c
 
-        # ── Ball: throttled, persisted across skip frames ─────────────────────
-        if ball_detector and _due(frame_num, ball_every):
-            ball_xy = ball_detector.detect(frame)
+        # ── Ball: ROI-tracked, throttled, persisted across skip frames ────────
+        if ball_tracker and _due(frame_num, ball_every):
+            ball_xy = ball_tracker.update(frame)
 
         # Labels derived from cached clusters (free); the ball-vote is pure
         # geometry so it runs every frame and a flip re-labels everyone instantly.
@@ -330,7 +414,8 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python pipeline.py <video> [--det PATH] [--ocr PATH] [--out FILE] "
-              "[--conf N] [--ocr-every N] [--ball-every N]")
+              "[--conf N] [--ocr-every N] [--ball-every N] [--ball-roi N] "
+              "[--ball-full-every N]")
         sys.exit(1)
 
     video       = sys.argv[1]
@@ -342,6 +427,8 @@ if __name__ == "__main__":
     ocr_warning = False
     ocr_every   = 5
     ball_every  = 2
+    ball_roi    = 320
+    ball_full_every = 30
 
     i = 2
     while i < len(sys.argv):
@@ -361,10 +448,15 @@ if __name__ == "__main__":
             ocr_every = int(sys.argv[i + 1]); i += 2
         elif sys.argv[i] == "--ball-every" and i + 1 < len(sys.argv):
             ball_every = int(sys.argv[i + 1]); i += 2
+        elif sys.argv[i] == "--ball-roi" and i + 1 < len(sys.argv):
+            ball_roi = int(sys.argv[i + 1]); i += 2
+        elif sys.argv[i] == "--ball-full-every" and i + 1 < len(sys.argv):
+            ball_full_every = int(sys.argv[i + 1]); i += 2
         elif sys.argv[i] == "--ocr-warning":
             ocr_warning = True; i += 1
         else:
             i += 1
 
     run_pipeline(video, det_model, ocr_model, ball_model, out_path, conf, ocr_warning,
-                 ocr_every=ocr_every, ball_every=ball_every)
+                 ocr_every=ocr_every, ball_every=ball_every,
+                 ball_roi=ball_roi, ball_full_every=ball_full_every)
