@@ -91,6 +91,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
                  output_path=None, conf=0.4, ocr_warning=False):
     _NUMBER_HISTORY.clear()
     detector      = YOLO(det_model_path)
+    device        = _best_device()
     classifier    = TeamClassifier()
     ocr           = JerseyOCR(ocr_model_path)
     ball_detector = BallDetector(ball_model_path) if ball_model_path else None
@@ -121,7 +122,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
 
         results = detector.track(
             frame, persist=True, conf=conf, verbose=False,
-            device=_best_device(), half=True,
+            device=device, half=True,
         )
 
         boxes = []
