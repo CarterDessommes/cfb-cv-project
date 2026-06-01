@@ -414,6 +414,7 @@ def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
         conf=args.conf,
         ocr_every=args.ocr_every,
         ball_every=args.ball_every,
+        det_imgsz=args.imgsz,
     )
     return {
         "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -450,6 +451,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ball", type=Path, default=ROOT / "weights/ball-best.pt")
     parser.add_argument("--homography", type=Path, default=ROOT / "homographies.npz")
     parser.add_argument("--conf", type=float, default=0.4)
+    parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--ocr-every", type=int, default=5)
     parser.add_argument("--ball-every", type=int, default=1)
     parser.add_argument("--no-ball", action="store_true")
