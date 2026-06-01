@@ -29,7 +29,13 @@ import numpy as np
 from collections import Counter
 
 from team_classifier import TeamClassifier, _best_device
-from field_mapper import project_players, build_field_canvas, load_homographies, CANVAS_SCALE
+from field_mapper import (
+    project_players,
+    build_field_canvas,
+    field_to_canvas_point,
+    load_homographies,
+    CANVAS_SCALE,
+)
 from yolo_utils import boxes_to_cpu_arrays
 from tracker import get_tracker_config_path
 
@@ -504,8 +510,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
         for p, fp in zip(field_state, field_points):
             if not fp["in_bounds"]:
                 continue
-            cx = int(fp["field_x"] * CANVAS_SCALE)
-            cy = int(fp["field_y"] * CANVAS_SCALE)
+            cx, cy = field_to_canvas_point(fp["field_x"], fp["field_y"], CANVAS_SCALE)
             color = team_color_map.get(p["team"], (128, 128, 128))
 
             trail = _TRAIL.setdefault(p["track_id"], [])
@@ -522,7 +527,9 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
 
         if ball_xy:
             bx_c = int(ball_xy[0] / frame.shape[1] * canvas.shape[1])
-            by_c = int(ball_xy[1] / frame.shape[0] * canvas.shape[0])
+            by_c = canvas.shape[0] - 1 - int(ball_xy[1] / frame.shape[0] * canvas.shape[0])
+            bx_c = max(0, min(canvas.shape[1] - 1, bx_c))
+            by_c = max(0, min(canvas.shape[0] - 1, by_c))
             _BALL_TRAIL.append((bx_c, by_c))
             if len(_BALL_TRAIL) > _TRAIL_MAX:
                 _BALL_TRAIL.pop(0)

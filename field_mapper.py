@@ -214,6 +214,24 @@ def project_players(
 
 # -- Top-down canvas rendering --
 
+def field_to_canvas_point(
+    field_x: float,
+    field_y: float,
+    scale: int = CANVAS_SCALE,
+    flip_x_axis: bool = True,
+) -> Tuple[int, int]:
+    """Convert field-yard coordinates to top-down canvas pixels."""
+    w = int(FIELD_LENGTH * scale)
+    h = int(FIELD_WIDTH * scale)
+    canvas_y = FIELD_WIDTH - field_y if flip_x_axis else field_y
+    cx = int(field_x * scale)
+    cy = int(canvas_y * scale)
+    return (
+        max(0, min(w - 1, cx)),
+        max(0, min(h - 1, cy)),
+    )
+
+
 def build_field_canvas(scale: int = CANVAS_SCALE) -> np.ndarray:
     """Create a blank top-down football field canvas (BGR image)."""
     h = int(FIELD_WIDTH  * scale)
