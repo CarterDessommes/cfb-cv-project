@@ -1,0 +1,773 @@
+{
+  "frames": [
+    {
+      "ball": {
+        "center": [
+          670,
+          612
+        ]
+      },
+      "frame_number": 0,
+      "image_path": "benchmarks/fixtures/key_frames/pass1/pass1_frame_000000.png",
+      "players": [
+        {
+          "bbox": [
+            1045,
+            135,
+            1110,
+            258
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1082,
+            290,
+            1142,
+            427
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1390,
+            502,
+            1447,
+            658
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1152,
+            773,
+            1241,
+            955
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            728,
+            597,
+            815,
+            760
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            707,
+            363,
+            817,
+            491
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            690,
+            478,
+            804,
+            547
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            762,
+            495,
+            863,
+            636
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            720,
+            533,
+            819,
+            629
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            672,
+            540,
+            775,
+            680
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            540,
+            107,
+            630,
+            239
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            470,
+            368,
+            549,
+            493
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            308,
+            467,
+            380,
+            630
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            277,
+            540,
+            374,
+            684
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            525,
+            693,
+            641,
+            870
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            482,
+            642,
+            572,
+            763
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            548,
+            568,
+            623,
+            693
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            588,
+            562,
+            644,
+            662
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            603,
+            533,
+            684,
+            623
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            548,
+            507,
+            643,
+            588
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            527,
+            448,
+            622,
+            550
+          ],
+          "team": "offense"
+        }
+      ]
+    },
+    {
+      "ball": {
+        "center": [
+          356,
+          520
+        ]
+      },
+      "frame_number": 60,
+      "image_path": "benchmarks/fixtures/key_frames/pass1/pass1_frame_000060.png",
+      "players": [
+        {
+          "bbox": [
+            397,
+            543,
+            477,
+            657
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            660,
+            130,
+            764,
+            243
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            573,
+            295,
+            689,
+            402
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            307,
+            465,
+            374,
+            620
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            687,
+            725,
+            837,
+            863
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            557,
+            607,
+            680,
+            765
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            515,
+            445,
+            622,
+            573
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            537,
+            427,
+            612,
+            517
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            532,
+            570,
+            612,
+            720
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            567,
+            487,
+            653,
+            589
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            1195,
+            155,
+            1273,
+            273
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1330,
+            277,
+            1398,
+            410
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1455,
+            535,
+            1545,
+            686
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1232,
+            795,
+            1323,
+            953
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            810,
+            347,
+            888,
+            491
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            642,
+            598,
+            777,
+            743
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            603,
+            548,
+            660,
+            668
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            640,
+            518,
+            708,
+            623
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            658,
+            472,
+            762,
+            617
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            607,
+            432,
+            682,
+            512
+          ],
+          "team": "defense"
+        }
+      ]
+    },
+    {
+      "ball": {
+        "center": [
+          367,
+          581
+        ]
+      },
+      "frame_number": 120,
+      "image_path": "benchmarks/fixtures/key_frames/pass1/pass1_frame_000120.png",
+      "players": [
+        {
+          "bbox": [
+            961,
+            488,
+            1044,
+            645
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            271,
+            567,
+            345,
+            761
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            676,
+            583,
+            779,
+            749
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            690,
+            455,
+            755,
+            516
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            606,
+            410,
+            679,
+            474
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1491,
+            721,
+            1605,
+            928
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            593,
+            581,
+            688,
+            767
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            702,
+            520,
+            794,
+            670
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            676,
+            492,
+            738,
+            609
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            597,
+            477,
+            697,
+            647
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            572,
+            431,
+            677,
+            604
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            324,
+            593,
+            419,
+            780
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            335,
+            519,
+            440,
+            672
+          ],
+          "team": "offense"
+        }
+      ]
+    },
+    {
+      "ball": {
+        "center": [
+          407,
+          572
+        ]
+      },
+      "frame_number": 180,
+      "image_path": "benchmarks/fixtures/key_frames/pass1/pass1_frame_000180.png",
+      "players": [
+        {
+          "bbox": [
+            973,
+            328,
+            1098,
+            593
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1145,
+            902,
+            1299,
+            1044
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            613,
+            427,
+            848,
+            717
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            317,
+            463,
+            579,
+            666
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            1340,
+            157,
+            1491,
+            507
+          ],
+          "team": "offense"
+        }
+      ]
+    },
+    {
+      "ball": {
+        "center": [
+          714,
+          552
+        ]
+      },
+      "frame_number": 240,
+      "image_path": "benchmarks/fixtures/key_frames/pass1/pass1_frame_000240.png",
+      "players": [
+        {
+          "bbox": [
+            253,
+            605,
+            375,
+            860
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            0,
+            562,
+            70,
+            787
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            925,
+            380,
+            1022,
+            571
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            468,
+            428,
+            671,
+            596
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            665,
+            385,
+            779,
+            569
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            735,
+            470,
+            849,
+            648
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            817,
+            498,
+            945,
+            702
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            895,
+            183,
+            988,
+            390
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            803,
+            572,
+            882,
+            794
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            540,
+            492,
+            745,
+            624
+          ],
+          "team": "offense"
+        }
+      ]
+    },
+    {
+      "frame_number": 272,
+      "image_path": "benchmarks/fixtures/key_frames/pass1/pass1_frame_000272.png",
+      "players": [
+        {
+          "bbox": [
+            30,
+            380,
+            243,
+            813
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            377,
+            463,
+            568,
+            903
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            180,
+            257,
+            385,
+            620
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            402,
+            132,
+            521,
+            523
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            668,
+            62,
+            770,
+            272
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            697,
+            177,
+            865,
+            567
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            623,
+            293,
+            763,
+            733
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            383,
+            442,
+            767,
+            648
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            617,
+            343,
+            758,
+            782
+          ],
+          "team": "offense"
+        }
+      ]
+    }
+  ],
+  "video_path": "test media/videos/pass1.mp4"
+}

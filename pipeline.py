@@ -15,6 +15,7 @@ Defaults:
 """
 
 import sys
+import time
 import cv2
 import numpy as np
 from collections import Counter
@@ -96,6 +97,163 @@ class JerseyOCR:
             return []
         results = self.model(crops, device=self.device, verbose=False)
         return [r.names[r.probs.top1] for r in results]
+
+
+def _p95(values: list[float]) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    idx = min(len(ordered) - 1, int(np.ceil(len(ordered) * 0.95)) - 1)
+    return float(ordered[idx])
+
+
+def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/player-best.pt",
+                           ocr_model_path="weights/jersey_ocr.pt",
+                           ball_model_path="weights/ball-best.pt",
+                           homography_path="homographies.npz", conf=0.4,
+                           ocr_every=5, ball_every=1):
+    """Run the field-state pipeline headlessly and return predictions + timings.
+
+    `frame_numbers` are zero-based video frame indices, matching OpenCV and the
+    exported benchmark PNG filenames.
+    """
+    from ultralytics import YOLO
+
+    target_frames = sorted({int(n) for n in frame_numbers if int(n) >= 0})
+    if not target_frames:
+        raise ValueError("frame_numbers must include at least one frame index")
+
+    _NUMBER_HISTORY.clear()
+    load_start = time.perf_counter()
+    detector      = YOLO(det_model_path)
+    device        = _best_device()
+    classifier    = TeamClassifier()
+    ocr           = JerseyOCR(ocr_model_path)
+    ball_detector = BallDetector(ball_model_path) if ball_model_path else None
+    homography    = load_homographies(homography_path)
+    model_load_seconds = time.perf_counter() - load_start
+
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise RuntimeError(f"Could not open video: {video_path}")
+
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    max_frame_index = min(max(target_frames), total - 1) if total > 0 else max(target_frames)
+    target_set = set(target_frames)
+
+    fitted = False
+    ball_xy: tuple[float, float] | None = None
+    cluster_by_id: dict[int, int] = {}
+    number_by_id: dict[int, str] = {}
+    frame_latencies: list[float] = []
+    predictions_by_frame: dict[int, dict] = {}
+
+    process_start = time.perf_counter()
+    frame_num = 0
+    while cap.isOpened() and frame_num <= max_frame_index:
+        ret, frame = cap.read()
+        if not ret:
+            break
+        frame_num += 1
+        frame_index = frame_num - 1
+        frame_start = time.perf_counter()
+
+        results = detector.track(
+            frame, persist=True, conf=conf, verbose=False,
+            device=device, half=True,
+        )
+
+        boxes = []
+        if results[0].boxes is not None and results[0].boxes.id is not None:
+            xyxy = results[0].boxes.xyxy.cpu().numpy()
+            ids  = results[0].boxes.id.cpu().numpy().astype(int)
+            clss = results[0].boxes.cls.cpu().numpy().astype(int)
+            for box, tid, cls in zip(xyxy, ids, clss):
+                if cls == 0:
+                    boxes.append([*box, tid, cls])
+
+        if boxes and not fitted:
+            fitted = classifier.fit(frame, boxes)
+
+        if fitted and boxes:
+            new = [b for b in boxes if int(b[4]) not in cluster_by_id]
+            if new:
+                for b, c in zip(new, classifier.assign_clusters(frame, new)):
+                    if c >= 0:
+                        cluster_by_id[int(b[4])] = c
+
+        if ball_detector and _due(frame_num, ball_every):
+            ball_xy = ball_detector.detect(frame)
+
+        def _labels():
+            return ([classifier.cluster_to_label(cluster_by_id.get(int(b[4]), -1)) for b in boxes]
+                    if fitted else ["unknown"] * len(boxes))
+
+        team_labels = _labels()
+        if fitted and boxes:
+            classifier.update_offense_from_ball(ball_xy, boxes, team_labels)
+            team_labels = _labels()
+
+        if _due(frame_num, ocr_every):
+            crops, valid_idx = _crops(frame, boxes)
+            ocr_preds = ocr.predict(crops)
+            for j, pred in enumerate(ocr_preds):
+                tid = int(boxes[valid_idx[j]][4])
+                number_by_id[tid] = _stable_number(tid, pred)
+
+        field_state = []
+        for box, team in zip(boxes, team_labels):
+            track_id = int(box[4])
+            field_state.append({
+                "track_id": track_id,
+                "bbox": [int(v) for v in box[:4]],
+                "team": team,
+                "number": number_by_id.get(track_id, "?"),
+            })
+
+        detections_for_mapper = [
+            {"track_id": p["track_id"], "bbox": p["bbox"], "class": 0}
+            for p in field_state
+        ]
+        field_points = project_players(
+            frame_num=frame_num - 1,
+            detections=detections_for_mapper,
+            homography=homography,
+        )
+        fp_by_id = {p["track_id"]: p for p in field_points}
+        for p in field_state:
+            fp = fp_by_id.get(p["track_id"])
+            p["field_x"] = fp["field_x"] if fp else None
+            p["field_y"] = fp["field_y"] if fp else None
+
+        frame_latencies.append(time.perf_counter() - frame_start)
+        if frame_index in target_set:
+            predictions_by_frame[frame_index] = {
+                "frame_number": frame_index,
+                "players": field_state,
+                "ball": {"center": [float(ball_xy[0]), float(ball_xy[1])]} if ball_xy else None,
+            }
+
+    cap.release()
+    process_seconds = time.perf_counter() - process_start
+    processed_frames = frame_num
+    predictions = [predictions_by_frame[n] for n in target_frames if n in predictions_by_frame]
+
+    return {
+        "video_path": str(video_path),
+        "target_frames": target_frames,
+        "processed_frames": processed_frames,
+        "total_frames": total,
+        "predictions": predictions,
+        "timings": {
+            "model_load_seconds": model_load_seconds,
+            "processing_seconds": process_seconds,
+            "total_seconds": model_load_seconds + process_seconds,
+            "fps": processed_frames / process_seconds if process_seconds > 0 else 0.0,
+            "mean_frame_seconds": float(np.mean(frame_latencies)) if frame_latencies else 0.0,
+            "p95_frame_seconds": _p95(frame_latencies),
+        },
+    }
 
 
 def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=None,

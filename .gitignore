@@ -6,6 +6,11 @@ __pycache__/
 venv/
 .venv/
 *.onnx
+benchmarks/results/
+
+# Benchmark labeling source (regenerable; not needed to run benchmarks)
+benchmarks/fixtures/roboflow/
+benchmarks/fixtures/key_frames/
 
 # SAM2 model weights (too large for Git)
 sam2*.pt

@@ -1,0 +1,1032 @@
+{
+  "accuracy": {
+    "ball_hit_rate": 0.2,
+    "ball_labeled_count": 5,
+    "jersey_accuracy": null,
+    "jersey_labeled_count": 0,
+    "player_f1": 0.9536423841059603,
+    "player_false_negatives": 6,
+    "player_false_positives": 1,
+    "player_precision": 0.9863013698630136,
+    "player_recall": 0.9230769230769231,
+    "player_true_positives": 72,
+    "team_accuracy": 0.6111111111111112,
+    "team_labeled_count": 72
+  },
+  "created_at": "2026-05-31T17:03:36",
+  "labels_path": "/Users/carter/conductor/workspaces/cfb-cv-project/columbus/benchmarks/fixtures/pass1_labels.json",
+  "predictions": [
+    {
+      "ball": {
+        "center": [
+          668.12841796875,
+          613.2562255859375
+        ]
+      },
+      "frame_number": 0,
+      "players": [
+        {
+          "bbox": [
+            529,
+            700,
+            632,
+            863
+          ],
+          "field_x": 62.23,
+          "field_y": 18.69,
+          "number": "27",
+          "team": "offense",
+          "track_id": 1
+        },
+        {
+          "bbox": [
+            541,
+            114,
+            623,
+            233
+          ],
+          "field_x": 57.62,
+          "field_y": 43.83,
+          "number": "26",
+          "team": "offense",
+          "track_id": 2
+        },
+        {
+          "bbox": [
+            1150,
+            783,
+            1234,
+            955
+          ],
+          "field_x": 68.85,
+          "field_y": 17.06,
+          "number": "17",
+          "team": "defense",
+          "track_id": 3
+        },
+        {
+          "bbox": [
+            1045,
+            143,
+            1107,
+            258
+          ],
+          "field_x": 64.33,
+          "field_y": 43.47,
+          "number": "26",
+          "team": "defense",
+          "track_id": 4
+        },
+        {
+          "bbox": [
+            1394,
+            510,
+            1443,
+            655
+          ],
+          "field_x": 70.22,
+          "field_y": 27.28,
+          "number": "97",
+          "team": "defense",
+          "track_id": 5
+        },
+        {
+          "bbox": [
+            481,
+            642,
+            571,
+            762
+          ],
+          "field_x": 61.04,
+          "field_y": 21.86,
+          "number": "26",
+          "team": "offense",
+          "track_id": 6
+        },
+        {
+          "bbox": [
+            1091,
+            293,
+            1139,
+            423
+          ],
+          "field_x": 65.77,
+          "field_y": 35.9,
+          "number": "26",
+          "team": "defense",
+          "track_id": 7
+        },
+        {
+          "bbox": [
+            474,
+            372,
+            543,
+            489
+          ],
+          "field_x": 58.89,
+          "field_y": 31.97,
+          "number": "26",
+          "team": "offense",
+          "track_id": 8
+        },
+        {
+          "bbox": [
+            715,
+            602,
+            806,
+            761
+          ],
+          "field_x": 63.56,
+          "field_y": 22.34,
+          "number": "22",
+          "team": "defense",
+          "track_id": 9
+        },
+        {
+          "bbox": [
+            285,
+            541,
+            358,
+            679
+          ],
+          "field_x": 58.19,
+          "field_y": 24.33,
+          "number": "26",
+          "team": "offense",
+          "track_id": 10
+        },
+        {
+          "bbox": [
+            710,
+            376,
+            812,
+            493
+          ],
+          "field_x": 61.94,
+          "field_y": 32.29,
+          "number": "26",
+          "team": "defense",
+          "track_id": 11
+        },
+        {
+          "bbox": [
+            697,
+            481,
+            788,
+            571
+          ],
+          "field_x": 62.24,
+          "field_y": 29.15,
+          "number": "53",
+          "team": "defense",
+          "track_id": 12
+        },
+        {
+          "bbox": [
+            550,
+            505,
+            639,
+            599
+          ],
+          "field_x": 60.72,
+          "field_y": 27.8,
+          "number": "99",
+          "team": "offense",
+          "track_id": 13
+        },
+        {
+          "bbox": [
+            546,
+            572,
+            629,
+            692
+          ],
+          "field_x": 61.26,
+          "field_y": 24.39,
+          "number": "99",
+          "team": "offense",
+          "track_id": 14
+        },
+        {
+          "bbox": [
+            524,
+            449,
+            622,
+            555
+          ],
+          "field_x": 60.16,
+          "field_y": 29.45,
+          "number": "99",
+          "team": "offense",
+          "track_id": 15
+        },
+        {
+          "bbox": [
+            313,
+            475,
+            362,
+            627
+          ],
+          "field_x": 57.97,
+          "field_y": 26.25,
+          "number": "26",
+          "team": "offense",
+          "track_id": 16
+        },
+        {
+          "bbox": [
+            581,
+            532,
+            675,
+            636
+          ],
+          "field_x": 61.35,
+          "field_y": 26.48,
+          "number": "26",
+          "team": "offense",
+          "track_id": 17
+        },
+        {
+          "bbox": [
+            684,
+            554,
+            774,
+            670
+          ],
+          "field_x": 62.69,
+          "field_y": 25.44,
+          "number": "99",
+          "team": "defense",
+          "track_id": 18
+        },
+        {
+          "bbox": [
+            729,
+            540,
+            812,
+            639
+          ],
+          "field_x": 62.97,
+          "field_y": 26.64,
+          "number": "99",
+          "team": "defense",
+          "track_id": 19
+        },
+        {
+          "bbox": [
+            771,
+            498,
+            843,
+            623
+          ],
+          "field_x": 63.29,
+          "field_y": 27.3,
+          "number": "26",
+          "team": "defense",
+          "track_id": 20
+        }
+      ]
+    },
+    {
+      "ball": {
+        "center": [
+          583.671630859375,
+          618.4134521484375
+        ]
+      },
+      "frame_number": 60,
+      "players": [
+        {
+          "bbox": [
+            660,
+            134,
+            753,
+            243
+          ],
+          "field_x": 59.52,
+          "field_y": 43.31,
+          "number": "26",
+          "team": "offense",
+          "track_id": 2
+        },
+        {
+          "bbox": [
+            1239,
+            800,
+            1315,
+            952
+          ],
+          "field_x": 69.73,
+          "field_y": 16.95,
+          "number": "17",
+          "team": "defense",
+          "track_id": 3
+        },
+        {
+          "bbox": [
+            1202,
+            157,
+            1270,
+            268
+          ],
+          "field_x": 66.63,
+          "field_y": 42.83,
+          "number": "42",
+          "team": "defense",
+          "track_id": 4
+        },
+        {
+          "bbox": [
+            1466,
+            541,
+            1531,
+            684
+          ],
+          "field_x": 71.21,
+          "field_y": 25.91,
+          "number": "97",
+          "team": "defense",
+          "track_id": 5
+        },
+        {
+          "bbox": [
+            554,
+            604,
+            646,
+            766
+          ],
+          "field_x": 62.04,
+          "field_y": 21.37,
+          "number": "26",
+          "team": "offense",
+          "track_id": 6
+        },
+        {
+          "bbox": [
+            1330,
+            277,
+            1395,
+            405
+          ],
+          "field_x": 68.8,
+          "field_y": 36.62,
+          "number": "26",
+          "team": "defense",
+          "track_id": 7
+        },
+        {
+          "bbox": [
+            574,
+            299,
+            681,
+            399
+          ],
+          "field_x": 59.8,
+          "field_y": 35.65,
+          "number": "26",
+          "team": "offense",
+          "track_id": 8
+        },
+        {
+          "bbox": [
+            660,
+            600,
+            758,
+            737
+          ],
+          "field_x": 63.04,
+          "field_y": 22.57,
+          "number": "99",
+          "team": "defense",
+          "track_id": 9
+        },
+        {
+          "bbox": [
+            405,
+            543,
+            475,
+            652
+          ],
+          "field_x": 59.5,
+          "field_y": 25.04,
+          "number": "26",
+          "team": "offense",
+          "track_id": 10
+        },
+        {
+          "bbox": [
+            822,
+            354,
+            880,
+            490
+          ],
+          "field_x": 63.18,
+          "field_y": 32.12,
+          "number": "26",
+          "team": "defense",
+          "track_id": 11
+        },
+        {
+          "bbox": [
+            538,
+            575,
+            614,
+            719
+          ],
+          "field_x": 61.48,
+          "field_y": 22.92,
+          "number": "99",
+          "team": "offense",
+          "track_id": 14
+        },
+        {
+          "bbox": [
+            534,
+            425,
+            614,
+            558
+          ],
+          "field_x": 60.36,
+          "field_y": 28.86,
+          "number": "99",
+          "team": "offense",
+          "track_id": 15
+        },
+        {
+          "bbox": [
+            311,
+            470,
+            368,
+            618
+          ],
+          "field_x": 58.07,
+          "field_y": 26.1,
+          "number": "26",
+          "team": "offense",
+          "track_id": 16
+        },
+        {
+          "bbox": [
+            564,
+            499,
+            660,
+            631
+          ],
+          "field_x": 61.31,
+          "field_y": 26.15,
+          "number": "26",
+          "team": "offense",
+          "track_id": 25
+        },
+        {
+          "bbox": [
+            621,
+            528,
+            718,
+            650
+          ],
+          "field_x": 62.09,
+          "field_y": 25.56,
+          "number": "99",
+          "team": "defense",
+          "track_id": 18
+        },
+        {
+          "bbox": [
+            633,
+            470,
+            754,
+            591
+          ],
+          "field_x": 61.98,
+          "field_y": 27.81,
+          "number": "99",
+          "team": "defense",
+          "track_id": 19
+        },
+        {
+          "bbox": [
+            694,
+            731,
+            830,
+            859
+          ],
+          "field_x": 64.26,
+          "field_y": 18.7,
+          "number": "26",
+          "team": "offense",
+          "track_id": 1
+        },
+        {
+          "bbox": [
+            607,
+            444,
+            683,
+            564
+          ],
+          "field_x": 61.24,
+          "field_y": 28.76,
+          "number": "53",
+          "team": "defense",
+          "track_id": 12
+        },
+        {
+          "bbox": [
+            527,
+            446,
+            622,
+            575
+          ],
+          "field_x": 60.49,
+          "field_y": 28.2,
+          "number": "99",
+          "team": "offense",
+          "track_id": 13
+        }
+      ]
+    },
+    {
+      "ball": null,
+      "frame_number": 120,
+      "players": [
+        {
+          "bbox": [
+            1498,
+            725,
+            1615,
+            926
+          ],
+          "field_x": 71.84,
+          "field_y": 18.77,
+          "number": "99",
+          "team": "defense",
+          "track_id": 6
+        },
+        {
+          "bbox": [
+            310,
+            576,
+            423,
+            776
+          ],
+          "field_x": 59.59,
+          "field_y": 21.0,
+          "number": "26",
+          "team": "defense",
+          "track_id": 10
+        },
+        {
+          "bbox": [
+            593,
+            582,
+            683,
+            762
+          ],
+          "field_x": 62.19,
+          "field_y": 21.91,
+          "number": "99",
+          "team": "defense",
+          "track_id": 14
+        },
+        {
+          "bbox": [
+            325,
+            519,
+            434,
+            695
+          ],
+          "field_x": 59.14,
+          "field_y": 23.52,
+          "number": "97",
+          "team": "defense",
+          "track_id": 16
+        },
+        {
+          "bbox": [
+            598,
+            475,
+            710,
+            645
+          ],
+          "field_x": 61.61,
+          "field_y": 25.67,
+          "number": "26",
+          "team": "defense",
+          "track_id": 13
+        },
+        {
+          "bbox": [
+            950,
+            492,
+            1041,
+            652
+          ],
+          "field_x": 65.22,
+          "field_y": 26.1,
+          "number": "26",
+          "team": "offense",
+          "track_id": 18
+        },
+        {
+          "bbox": [
+            697,
+            512,
+            792,
+            676
+          ],
+          "field_x": 62.75,
+          "field_y": 24.82,
+          "number": "99",
+          "team": "offense",
+          "track_id": 9
+        },
+        {
+          "bbox": [
+            268,
+            566,
+            366,
+            761
+          ],
+          "field_x": 58.99,
+          "field_y": 21.36,
+          "number": "21",
+          "team": "offense",
+          "track_id": 36
+        },
+        {
+          "bbox": [
+            688,
+            464,
+            749,
+            621
+          ],
+          "field_x": 62.13,
+          "field_y": 26.6,
+          "number": "99",
+          "team": "defense",
+          "track_id": 15
+        },
+        {
+          "bbox": [
+            576,
+            423,
+            675,
+            608
+          ],
+          "field_x": 61.06,
+          "field_y": 26.86,
+          "number": "99",
+          "team": "defense",
+          "track_id": 25
+        },
+        {
+          "bbox": [
+            661,
+            570,
+            780,
+            752
+          ],
+          "field_x": 62.96,
+          "field_y": 22.37,
+          "number": "99",
+          "team": "defense",
+          "track_id": 29
+        },
+        {
+          "bbox": [
+            660,
+            495,
+            749,
+            656
+          ],
+          "field_x": 62.21,
+          "field_y": 25.4,
+          "number": "26",
+          "team": "offense",
+          "track_id": 39
+        }
+      ]
+    },
+    {
+      "ball": null,
+      "frame_number": 180,
+      "players": [
+        {
+          "bbox": [
+            1353,
+            171,
+            1477,
+            504
+          ],
+          "field_x": 68.41,
+          "field_y": 36.13,
+          "number": "26",
+          "team": "defense",
+          "track_id": 49
+        },
+        {
+          "bbox": [
+            616,
+            431,
+            837,
+            709
+          ],
+          "field_x": 63.39,
+          "field_y": 29.1,
+          "number": "53",
+          "team": "offense",
+          "track_id": 51
+        },
+        {
+          "bbox": [
+            316,
+            470,
+            576,
+            657
+          ],
+          "field_x": 60.97,
+          "field_y": 30.21,
+          "number": "91",
+          "team": "defense",
+          "track_id": 47
+        },
+        {
+          "bbox": [
+            977,
+            331,
+            1093,
+            576
+          ],
+          "field_x": 65.36,
+          "field_y": 33.31,
+          "number": "26",
+          "team": "offense",
+          "track_id": 50
+        }
+      ]
+    },
+    {
+      "ball": null,
+      "frame_number": 240,
+      "players": [
+        {
+          "bbox": [
+            900,
+            179,
+            983,
+            388
+          ],
+          "field_x": 62.98,
+          "field_y": 38.72,
+          "number": "26",
+          "team": "defense",
+          "track_id": 49
+        },
+        {
+          "bbox": [
+            475,
+            431,
+            631,
+            618
+          ],
+          "field_x": 60.53,
+          "field_y": 30.47,
+          "number": "99",
+          "team": "defense",
+          "track_id": 47
+        },
+        {
+          "bbox": [
+            674,
+            390,
+            775,
+            563
+          ],
+          "field_x": 61.84,
+          "field_y": 32.44,
+          "number": "99",
+          "team": "offense",
+          "track_id": 50
+        },
+        {
+          "bbox": [
+            725,
+            472,
+            865,
+            640
+          ],
+          "field_x": 62.93,
+          "field_y": 30.11,
+          "number": "97",
+          "team": "offense",
+          "track_id": 53
+        },
+        {
+          "bbox": [
+            594,
+            492,
+            741,
+            625
+          ],
+          "field_x": 61.65,
+          "field_y": 30.4,
+          "number": "53",
+          "team": "offense",
+          "track_id": 51
+        },
+        {
+          "bbox": [
+            812,
+            505,
+            936,
+            704
+          ],
+          "field_x": 63.97,
+          "field_y": 28.31,
+          "number": "21",
+          "team": "offense",
+          "track_id": 55
+        },
+        {
+          "bbox": [
+            807,
+            570,
+            935,
+            798
+          ],
+          "field_x": 64.38,
+          "field_y": 25.65,
+          "number": "26",
+          "team": "defense",
+          "track_id": 56
+        },
+        {
+          "bbox": [
+            935,
+            383,
+            1022,
+            561
+          ],
+          "field_x": 64.25,
+          "field_y": 32.83,
+          "number": "26",
+          "team": "offense",
+          "track_id": 54
+        },
+        {
+          "bbox": [
+            260,
+            611,
+            373,
+            861
+          ],
+          "field_x": 59.83,
+          "field_y": 23.14,
+          "number": "55",
+          "team": "offense",
+          "track_id": 58
+        },
+        {
+          "bbox": [
+            0,
+            565,
+            63,
+            782
+          ],
+          "field_x": 56.71,
+          "field_y": 24.86,
+          "number": "21",
+          "team": "offense",
+          "track_id": 62
+        }
+      ]
+    },
+    {
+      "ball": null,
+      "frame_number": 272,
+      "players": [
+        {
+          "bbox": [
+            675,
+            75,
+            764,
+            272
+          ],
+          "field_x": 59.9,
+          "field_y": 42.95,
+          "number": "26",
+          "team": "defense",
+          "track_id": 49
+        },
+        {
+          "bbox": [
+            187,
+            266,
+            385,
+            633
+          ],
+          "field_x": 58.06,
+          "field_y": 29.63,
+          "number": "99",
+          "team": "offense",
+          "track_id": 50
+        },
+        {
+          "bbox": [
+            639,
+            298,
+            767,
+            627
+          ],
+          "field_x": 62.0,
+          "field_y": 30.39,
+          "number": "26",
+          "team": "offense",
+          "track_id": 55
+        },
+        {
+          "bbox": [
+            594,
+            336,
+            779,
+            795
+          ],
+          "field_x": 62.74,
+          "field_y": 25.47,
+          "number": "26",
+          "team": "defense",
+          "track_id": 56
+        },
+        {
+          "bbox": [
+            709,
+            182,
+            848,
+            576
+          ],
+          "field_x": 62.43,
+          "field_y": 32.09,
+          "number": "26",
+          "team": "offense",
+          "track_id": 54
+        },
+        {
+          "bbox": [
+            381,
+            465,
+            564,
+            894
+          ],
+          "field_x": 61.38,
+          "field_y": 22.51,
+          "number": "26",
+          "team": "offense",
+          "track_id": 58
+        },
+        {
+          "bbox": [
+            37,
+            386,
+            210,
+            811
+          ],
+          "field_x": 57.76,
+          "field_y": 24.19,
+          "number": "59",
+          "team": "offense",
+          "track_id": 62
+        },
+        {
+          "bbox": [
+            414,
+            139,
+            534,
+            530
+          ],
+          "field_x": 59.18,
+          "field_y": 33.2,
+          "number": "97",
+          "team": "offense",
+          "track_id": 53
+        }
+      ]
+    }
+  ],
+  "thresholds": {
+    "ball_hit_rate_drop": 0.05,
+    "fps_regression_pct": 0.1,
+    "jersey_accuracy_drop": 0.05,
+    "p95_regression_pct": 0.15,
+    "player_f1_drop": 0.02,
+    "team_accuracy_drop": 0.03
+  },
+  "timings": {
+    "fps": 4.759493817024991,
+    "mean_frame_seconds": 0.2085622120325602,
+    "model_load_seconds": 1.4462836669990793,
+    "p95_frame_seconds": 0.28382183400390204,
+    "processing_seconds": 57.35904079199827,
+    "total_seconds": 58.80532445899735
+  },
+  "video_path": "/Users/carter/conductor/workspaces/cfb-cv-project/columbus/test media/videos/pass1.mp4"
+}
