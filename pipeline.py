@@ -87,6 +87,26 @@ def _crops(frame, boxes):
     return crops, indices
 
 
+def _nearest_player_to_ball(ball_xy, boxes: list) -> int | None:
+    """Return the track id of the visible player nearest the detected ball."""
+    if ball_xy is None or not boxes:
+        return None
+
+    bx, by = float(ball_xy[0]), float(ball_xy[1])
+    nearest_track_id = None
+    nearest_dist = None
+    for box in boxes:
+        if len(box) < 5:
+            continue
+        cx = (float(box[0]) + float(box[2])) / 2
+        cy = (float(box[1]) + float(box[3])) / 2
+        dist = np.hypot(bx - cx, by - cy)
+        if nearest_dist is None or dist < nearest_dist:
+            nearest_dist = dist
+            nearest_track_id = int(box[4])
+    return nearest_track_id
+
+
 class JerseyOCR:
     def __init__(self, model_path: str):
         from ultralytics import YOLO
@@ -282,7 +302,6 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
 
     _NUMBER_HISTORY.clear()
     _TRAIL: dict[int, list] = {}   # track_id -> list of (cx, cy) canvas points
-    _BALL_TRAIL: list = []         # list of (bx, by) ball canvas points
     _TRAIL_MAX = 45
     detector       = YOLO(det_model_path)
     tracker_config = get_tracker_config_path()
@@ -378,6 +397,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
         if fitted and boxes:
             if classifier.update_offense_from_ball(ball_xy, boxes, team_clusters):
                 team_labels = _labels(team_clusters)  # re-derive after a flip (no NN cost)
+        ball_carrier_track_id = _nearest_player_to_ball(ball_xy, boxes)
 
         # ── Jersey OCR: throttled, cached by track_id with _stable_number ─────
         if _due(frame_num, ocr_every):
@@ -398,6 +418,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
                 "bbox":     bbox,
                 "team":     team,
                 "number":   number,
+                "is_ball_carrier": track_id == ball_carrier_track_id,
             })
             detections_for_mapper.append({
                 "track_id": track_id,
@@ -448,19 +469,13 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
 
             cv2.circle(canvas, (cx, cy), 7, color, -1)
             cv2.circle(canvas, (cx, cy), 7, (255, 255, 255), 1)
+            if p["is_ball_carrier"]:
+                cv2.circle(canvas, (cx, cy), 11, (0, 255, 255), 2)
+                cv2.circle(canvas, (cx, cy), 9, (0, 0, 0), 1)
+                cv2.putText(canvas, "C", (cx - 4, cy - 13),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 255, 255), 1)
             cv2.putText(canvas, str(p["track_id"]), (cx + 8, cy + 4),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
-
-        if ball_xy:
-            bx_c = int(ball_xy[0] / frame.shape[1] * canvas.shape[1])
-            by_c = canvas.shape[0] - 1 - int(ball_xy[1] / frame.shape[0] * canvas.shape[0])
-            bx_c = max(0, min(canvas.shape[1] - 1, bx_c))
-            by_c = max(0, min(canvas.shape[0] - 1, by_c))
-            _BALL_TRAIL.append((bx_c, by_c))
-            if len(_BALL_TRAIL) > _TRAIL_MAX:
-                _BALL_TRAIL.pop(0)
-            for j in range(1, len(_BALL_TRAIL)):
-                cv2.line(canvas, _BALL_TRAIL[j - 1], _BALL_TRAIL[j], (0, 255, 0), 1)
 
         # Resize canvas to match frame height and show side by side
         target_h = frame.shape[0]
