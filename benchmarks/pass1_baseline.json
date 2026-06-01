@@ -21,7 +21,7 @@
     "no_ball": false,
     "ocr_every": 5
   },
-  "created_at": "2026-05-31T21:23:50",
+  "created_at": "2026-05-31T21:31:34",
   "labels_path": "/Users/carter/conductor/workspaces/cfb-cv-project/sarajevo/benchmarks/fixtures/pass1_labels.json",
   "predictions": [
     {
@@ -1024,12 +1024,12 @@
     "team_accuracy_drop": 0.03
   },
   "timings": {
-    "fps": 7.369640142880158,
-    "mean_frame_seconds": 0.13393055403635168,
-    "model_load_seconds": 1.0255482909997227,
-    "p95_frame_seconds": 0.18174408299091738,
-    "processing_seconds": 37.04387116699945,
-    "total_seconds": 38.069419457999174
+    "fps": 8.939910672855602,
+    "mean_frame_seconds": 0.11056893224272094,
+    "model_load_seconds": 1.1028185420000227,
+    "p95_frame_seconds": 0.16296658301143907,
+    "processing_seconds": 30.537217874996713,
+    "total_seconds": 31.640036416996736
   },
   "video_path": "/Users/carter/conductor/workspaces/cfb-cv-project/sarajevo/test media/videos/pass1.mp4"
 }

@@ -21,7 +21,7 @@
     "no_ball": false,
     "ocr_every": 5
   },
-  "created_at": "2026-05-31T21:23:04",
+  "created_at": "2026-05-31T21:30:52",
   "labels_path": "/Users/carter/conductor/workspaces/cfb-cv-project/sarajevo/benchmarks/fixtures/bijon_run_labels.json",
   "predictions": [
     {
@@ -1419,12 +1419,12 @@
     "team_accuracy_drop": 0.03
   },
   "timings": {
-    "fps": 8.68269552303823,
-    "mean_frame_seconds": 0.11384895888418337,
-    "model_load_seconds": 1.2005948750011157,
-    "p95_frame_seconds": 0.1378915829991456,
-    "processing_seconds": 34.09079579199897,
-    "total_seconds": 35.29139066700009
+    "fps": 8.59189382393186,
+    "mean_frame_seconds": 0.11504529154425089,
+    "model_load_seconds": 1.1105804169928888,
+    "p95_frame_seconds": 0.11862416699295864,
+    "processing_seconds": 34.451077499994426,
+    "total_seconds": 35.561657916987315
   },
   "video_path": "/Users/carter/conductor/workspaces/cfb-cv-project/sarajevo/test media/videos/bijon_run.mp4"
 }
