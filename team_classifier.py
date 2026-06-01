@@ -209,11 +209,12 @@ class TeamClassifier:
             return "unknown"
         return self._label_for_cluster(cluster)
 
-    def update_offense_from_ball(self, ball_xy, boxes: list, labels: list[str]) -> bool:
+    def update_offense_from_ball(self, ball_xy, boxes: list, clusters: list[int]) -> bool:
         """
-        Call after classify() each frame. Votes over a rolling window on which
-        cluster is actually offense (closer to the ball). Flips the assignment
-        once a majority is reached so the classifier self-corrects.
+        Call after assigning raw clusters each frame. Votes over a rolling window
+        on which cluster is actually offense (the clustered player nearest the
+        ball). Flips the assignment once a majority is reached so the classifier
+        self-corrects before cluster labels are converted to offense/defense.
         ball_xy: (cx, cy) in pixel coords, or None if ball not detected.
         Returns True when the offense/defense label assignment changed.
         """
@@ -221,24 +222,23 @@ class TeamClassifier:
             return False
 
         bx, by = float(ball_xy[0]), float(ball_xy[1])
-        off_pts, def_pts = [], []
-        for box, lbl in zip(boxes, labels):
-            if lbl == "unknown":
+        nearest_cluster = None
+        nearest_dist = None
+        for box, cluster in zip(boxes, clusters):
+            if cluster < 0:
                 continue
             cx = (float(box[0]) + float(box[2])) / 2
             cy = (float(box[1]) + float(box[3])) / 2
-            (off_pts if lbl == "offense" else def_pts).append((cx, cy))
+            dist = np.hypot(bx - cx, by - cy)
+            if nearest_dist is None or dist < nearest_dist:
+                nearest_dist = dist
+                nearest_cluster = int(cluster)
 
-        if not off_pts or not def_pts:
+        if nearest_cluster is None:
             return False
 
-        off_c = np.mean(off_pts, axis=0)
-        def_c = np.mean(def_pts, axis=0)
-        d_off = np.hypot(bx - off_c[0], by - off_c[1])
-        d_def = np.hypot(bx - def_c[0], by - def_c[1])
-
-        # vote 1 = current "offense" cluster is actually farther from ball (needs swap)
-        self._ball_votes.append(1 if d_def < d_off else 0)
+        # vote 1 = nearest player belongs to the other cluster (needs swap)
+        self._ball_votes.append(1 if nearest_cluster != self._offense_cluster else 0)
         if len(self._ball_votes) > self._VOTE_WIN:
             self._ball_votes.pop(0)
 

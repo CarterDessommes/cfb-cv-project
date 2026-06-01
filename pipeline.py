@@ -175,10 +175,8 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
             )
 
             boxes = []
-            if results[0].boxes is not None and results[0].boxes.id is not None:
-                xyxy = results[0].boxes.xyxy.cpu().numpy()
-                ids  = results[0].boxes.id.cpu().numpy().astype(int)
-                clss = results[0].boxes.cls.cpu().numpy().astype(int)
+            xyxy, ids, clss, _ = boxes_to_cpu_arrays(results[0].boxes)
+            if xyxy is not None and ids is not None and clss is not None:
                 for box, tid, cls in zip(xyxy, ids, clss):
                     if cls == 0:
                         boxes.append([*box, tid, cls])
@@ -196,14 +194,19 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
         if ball_detector and _due(frame_num, ball_every):
             ball_xy = ball_detector.update(frame)
 
-        def _labels():
-            return ([classifier.cluster_to_label(cluster_by_id.get(int(b[4]), -1)) for b in boxes]
+        def _clusters():
+            return ([cluster_by_id.get(int(b[4]), -1) for b in boxes]
+                    if fitted else [-1] * len(boxes))
+
+        def _labels(clusters):
+            return ([classifier.cluster_to_label(c) for c in clusters]
                     if fitted else ["unknown"] * len(boxes))
 
-        team_labels = _labels()
+        team_clusters = _clusters()
+        team_labels = _labels(team_clusters)
         if fitted and boxes:
-            classifier.update_offense_from_ball(ball_xy, boxes, team_labels)
-            team_labels = _labels()
+            classifier.update_offense_from_ball(ball_xy, boxes, team_clusters)
+            team_labels = _labels(team_clusters)
 
         if _due(frame_num, ocr_every):
             crops, valid_idx = _crops(frame, boxes)
@@ -213,12 +216,13 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
                 number_by_id[tid] = _stable_number(tid, pred)
 
         field_state = []
-        for box, team in zip(boxes, team_labels):
+        for box, team, cluster in zip(boxes, team_labels, team_clusters):
             track_id = int(box[4])
             field_state.append({
                 "track_id": track_id,
                 "bbox": [int(v) for v in box[:4]],
                 "team": team,
+                "_team_cluster": int(cluster),
                 "number": number_by_id.get(track_id, "?"),
             })
 
@@ -249,6 +253,9 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
     process_seconds = time.perf_counter() - process_start
     processed_frames = frame_num
     predictions = [predictions_by_frame[n] for n in target_frames if n in predictions_by_frame]
+    for frame_prediction in predictions:
+        for player in frame_prediction["players"]:
+            player["team"] = classifier.cluster_to_label(player.pop("_team_cluster", -1))
 
     return {
         "video_path": str(video_path),
@@ -358,13 +365,19 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
 
         # Labels derived from cached clusters (free); the ball-vote is pure
         # geometry so it runs every frame and a flip re-labels everyone instantly.
-        def _labels():
-            return ([classifier.cluster_to_label(cluster_by_id.get(int(b[4]), -1)) for b in boxes]
+        def _clusters():
+            return ([cluster_by_id.get(int(b[4]), -1) for b in boxes]
+                    if fitted else [-1] * len(boxes))
+
+        def _labels(clusters):
+            return ([classifier.cluster_to_label(c) for c in clusters]
                     if fitted else ["unknown"] * len(boxes))
-        team_labels = _labels()
+
+        team_clusters = _clusters()
+        team_labels = _labels(team_clusters)
         if fitted and boxes:
-            if classifier.update_offense_from_ball(ball_xy, boxes, team_labels):
-                team_labels = _labels()  # re-derive after a flip (no NN cost)
+            if classifier.update_offense_from_ball(ball_xy, boxes, team_clusters):
+                team_labels = _labels(team_clusters)  # re-derive after a flip (no NN cost)
 
         # ── Jersey OCR: throttled, cached by track_id with _stable_number ─────
         if _due(frame_num, ocr_every):
