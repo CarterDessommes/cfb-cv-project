@@ -1,0 +1,1049 @@
+{
+  "frames": [
+    {
+      "ball": {
+        "center": [
+          814,
+          552
+        ]
+      },
+      "frame_number": 0,
+      "image_path": "benchmarks/fixtures/key_frames/bijon_run/frame_000000.png",
+      "players": [
+        {
+          "bbox": [
+            1057,
+            165,
+            1116,
+            338
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1293,
+            385,
+            1360,
+            561
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1327,
+            775,
+            1413,
+            956
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            998,
+            610,
+            1081,
+            811
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1153,
+            522,
+            1230,
+            705
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            778,
+            577,
+            850,
+            766
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            955,
+            267,
+            1022,
+            439
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            882,
+            448,
+            1010,
+            543
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            850,
+            510,
+            959,
+            645
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            767,
+            192,
+            859,
+            352
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            407,
+            383,
+            485,
+            554
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            292,
+            440,
+            364,
+            603
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            447,
+            615,
+            552,
+            811
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            590,
+            593,
+            693,
+            740
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            562,
+            532,
+            638,
+            678
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            630,
+            510,
+            721,
+            625
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            678,
+            498,
+            764,
+            608
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            730,
+            468,
+            830,
+            565
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            698,
+            437,
+            796,
+            508
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            708,
+            360,
+            814,
+            440
+          ],
+          "team": "offense"
+        }
+      ]
+    },
+    {
+      "ball": {
+        "center": [
+          810,
+          540
+        ]
+      },
+      "frame_number": 60,
+      "image_path": "benchmarks/fixtures/key_frames/bijon_run/frame_000060.png",
+      "players": [
+        {
+          "bbox": [
+            1283,
+            380,
+            1358,
+            554
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1133,
+            528,
+            1237,
+            702
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1280,
+            770,
+            1368,
+            952
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            908,
+            625,
+            992,
+            812
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            760,
+            560,
+            858,
+            741
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1005,
+            178,
+            1067,
+            333
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            915,
+            263,
+            999,
+            433
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            868,
+            423,
+            998,
+            533
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            828,
+            510,
+            936,
+            624
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            287,
+            427,
+            367,
+            587
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            402,
+            362,
+            468,
+            537
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            440,
+            593,
+            545,
+            794
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            588,
+            583,
+            684,
+            728
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            555,
+            518,
+            641,
+            668
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            757,
+            177,
+            861,
+            337
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            710,
+            345,
+            806,
+            435
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            693,
+            422,
+            795,
+            472
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            713,
+            452,
+            824,
+            547
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            680,
+            488,
+            751,
+            592
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            633,
+            503,
+            722,
+            583
+          ],
+          "team": "offense"
+        }
+      ]
+    },
+    {
+      "ball": {
+        "center": [
+          638,
+          470
+        ]
+      },
+      "frame_number": 120,
+      "image_path": "benchmarks/fixtures/key_frames/bijon_run/frame_000120.png",
+      "players": [
+        {
+          "bbox": [
+            408,
+            362,
+            502,
+            537
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            287,
+            432,
+            370,
+            593
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            445,
+            612,
+            567,
+            803
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            602,
+            575,
+            697,
+            734
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            565,
+            513,
+            668,
+            668
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            657,
+            468,
+            770,
+            613
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            720,
+            448,
+            803,
+            545
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            755,
+            425,
+            856,
+            503
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            730,
+            370,
+            837,
+            458
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            728,
+            310,
+            826,
+            403
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            788,
+            160,
+            891,
+            319
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            1032,
+            178,
+            1112,
+            319
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1312,
+            375,
+            1400,
+            544
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1363,
+            765,
+            1438,
+            956
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1175,
+            528,
+            1273,
+            703
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            887,
+            647,
+            981,
+            832
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            782,
+            543,
+            897,
+            739
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            857,
+            475,
+            967,
+            631
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            890,
+            393,
+            1019,
+            539
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            948,
+            272,
+            1079,
+            417
+          ],
+          "team": "defense"
+        }
+      ]
+    },
+    {
+      "frame_number": 180,
+      "image_path": "benchmarks/fixtures/key_frames/bijon_run/frame_000180.png",
+      "players": [
+        {
+          "bbox": [
+            1387,
+            288,
+            1502,
+            503
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1477,
+            818,
+            1599,
+            955
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1282,
+            397,
+            1417,
+            617
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            913,
+            628,
+            1033,
+            851
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1048,
+            523,
+            1227,
+            748
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            673,
+            495,
+            786,
+            726
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            682,
+            313,
+            847,
+            514
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            943,
+            437,
+            1023,
+            623
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            930,
+            393,
+            969,
+            463
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            547,
+            490,
+            695,
+            757
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            598,
+            315,
+            722,
+            524
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            1162,
+            348,
+            1281,
+            558
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            1050,
+            475,
+            1153,
+            566
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            780,
+            597,
+            924,
+            854
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            933,
+            538,
+            1053,
+            653
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            822,
+            458,
+            979,
+            632
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            847,
+            402,
+            935,
+            514
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            790,
+            382,
+            899,
+            535
+          ],
+          "team": "offense"
+        }
+      ]
+    },
+    {
+      "frame_number": 240,
+      "image_path": "benchmarks/fixtures/key_frames/bijon_run/frame_000240.png",
+      "players": [
+        {
+          "bbox": [
+            162,
+            368,
+            301,
+            697
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            733,
+            733,
+            873,
+            1045
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            260,
+            575,
+            399,
+            925
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            497,
+            537,
+            621,
+            868
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            375,
+            515,
+            518,
+            856
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            948,
+            577,
+            1105,
+            936
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            800,
+            575,
+            944,
+            954
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            808,
+            413,
+            943,
+            553
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            940,
+            555,
+            1063,
+            634
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            1443,
+            603,
+            1623,
+            907
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1360,
+            722,
+            1516,
+            984
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1168,
+            458,
+            1331,
+            793
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1113,
+            428,
+            1233,
+            628
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            688,
+            497,
+            828,
+            792
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            810,
+            492,
+            982,
+            807
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            483,
+            500,
+            616,
+            812
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            383,
+            428,
+            473,
+            540
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            312,
+            465,
+            407,
+            635
+          ],
+          "team": "defense"
+        }
+      ]
+    },
+    {
+      "frame_number": 295,
+      "image_path": "benchmarks/fixtures/key_frames/bijon_run/frame_000295.png",
+      "players": [
+        {
+          "bbox": [
+            1203,
+            383,
+            1509,
+            1045
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            712,
+            658,
+            1028,
+            1042
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            103,
+            297,
+            405,
+            1042
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            0,
+            68,
+            253,
+            693
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            417,
+            132,
+            748,
+            857
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            743,
+            143,
+            966,
+            790
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            915,
+            217,
+            1168,
+            938
+          ],
+          "team": "offense"
+        },
+        {
+          "bbox": [
+            378,
+            95,
+            569,
+            831
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1398,
+            65,
+            1553,
+            643
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            1208,
+            63,
+            1452,
+            668
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            940,
+            105,
+            1084,
+            281
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            878,
+            85,
+            1230,
+            596
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            743,
+            78,
+            874,
+            241
+          ],
+          "team": "defense"
+        },
+        {
+          "bbox": [
+            665,
+            128,
+            793,
+            823
+          ],
+          "team": "defense"
+        }
+      ]
+    }
+  ],
+  "video_path": "test media/videos/bijon_run.mp4"
+}
