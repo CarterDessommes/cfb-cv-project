@@ -3,17 +3,20 @@ Full field-state pipeline: player location + team + jersey number.
 
 Usage:
     python pipeline.py <video> [--det PATH] [--ocr PATH] [--ball PATH] [--out FILE]
-                              [--conf N] [--imgsz N] [--no-ball] [--ocr-every N]
-                              [--ball-every N]
+                              [--conf N] [--imgsz N] [--no-ball] [--det-every N]
+                              [--ocr-every N] [--ball-every N]
 
 Defaults:
     --det        weights/player-best.pt
     --ocr        weights/jersey_ocr.pt
     --ball       weights/ball-best.pt
     --conf       0.4
-    --imgsz      640 (YOLO inference resolution for player detection; must be a
-                      multiple of 32. Smaller = faster but lower accuracy — the
-                      single biggest compute lever since detection runs every frame)
+    --imgsz      480 (YOLO inference resolution for player detection; must be a
+                      multiple of 32. Smaller = faster but lower accuracy — one of
+                      the two biggest compute levers for player detection)
+    --det-every  1   (run player detection+tracking every Nth frame; set >1 to
+                      reuse prior tracks between detections. The detector net is
+                      the dominant per-frame cost, so this is an opt-in speed knob.)
     --ocr-every  5   (run jersey OCR every Nth frame; reuse cached numbers between)
     --ball-every 2   (run ball tracker every Nth frame; reuse last position between.
                       ROI passes are cheap, so 1 (every frame) is now affordable)
@@ -215,7 +218,7 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
                            ocr_model_path="weights/jersey_ocr.pt",
                            ball_model_path="weights/ball-best.pt",
                            homography_path="homographies.npz", conf=0.4,
-                           ocr_every=5, ball_every=1, det_imgsz=640):
+                           ocr_every=5, ball_every=1, det_imgsz=480, det_every=1):
     """Run the field-state pipeline headlessly and return predictions + timings.
 
     `frame_numbers` are zero-based video frame indices, matching OpenCV and the
@@ -247,6 +250,7 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
 
     fitted = False
     ball_xy: tuple[float, float] | None = None
+    boxes: list = []   # persisted across frames where detection is skipped
     cluster_by_id: dict[int, int] = {}
     number_by_id: dict[int, str] = {}
     frame_latencies: list[float] = []
@@ -262,19 +266,22 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
         frame_index = frame_num - 1
         frame_start = time.perf_counter()
 
-        results = detector.track(
-            frame, persist=True, conf=conf, verbose=False,
-            device=device, half=True, imgsz=det_imgsz,
-        )
+        # Player detection+tracking is the dominant per-frame cost, so run it on a
+        # stride and reuse the prior tracks between (persist=True keeps the IDs).
+        if _due(frame_num, det_every):
+            results = detector.track(
+                frame, persist=True, conf=conf, verbose=False,
+                device=device, half=True, imgsz=det_imgsz,
+            )
 
-        boxes = []
-        if results[0].boxes is not None and results[0].boxes.id is not None:
-            xyxy = results[0].boxes.xyxy.cpu().numpy()
-            ids  = results[0].boxes.id.cpu().numpy().astype(int)
-            clss = results[0].boxes.cls.cpu().numpy().astype(int)
-            for box, tid, cls in zip(xyxy, ids, clss):
-                if cls == 0:
-                    boxes.append([*box, tid, cls])
+            boxes = []
+            if results[0].boxes is not None and results[0].boxes.id is not None:
+                xyxy = results[0].boxes.xyxy.cpu().numpy()
+                ids  = results[0].boxes.id.cpu().numpy().astype(int)
+                clss = results[0].boxes.cls.cpu().numpy().astype(int)
+                for box, tid, cls in zip(xyxy, ids, clss):
+                    if cls == 0:
+                        boxes.append([*box, tid, cls])
 
         if boxes and not fitted:
             fitted = classifier.fit(frame, boxes)
@@ -363,7 +370,7 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
 def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=None,
                  output_path=None, conf=0.4, ocr_warning=False,
                  ocr_every=5, ball_every=2, ball_roi=320, ball_full_every=30,
-                 det_imgsz=640):
+                 det_imgsz=480, det_every=1):
     from ultralytics import YOLO
 
     _NUMBER_HISTORY.clear()
@@ -406,6 +413,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
 
     frame_num = 0
     ball_xy: tuple[float, float] | None = None   # persisted across throttled frames
+    boxes: list = []                             # persisted across det-skipped frames
     cluster_by_id: dict[int, int] = {}           # track_id -> team cluster (0/1)
     number_by_id:  dict[int, str] = {}           # track_id -> stable jersey number
     while cap.isOpened():
@@ -414,17 +422,22 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
             break
         frame_num += 1
 
-        results = detector.track(
-            frame, tracker=tracker_config, persist=True, conf=conf, verbose=False,
-            device=device, half=True, imgsz=det_imgsz,
-        )
+        # ── Player detection+tracking: strided, reuse prior tracks between ────
+        # The detector net is the dominant per-frame cost, so run it every Nth
+        # frame and coast on the previous tracks. persist=True keeps BoT-SORT IDs
+        # stable across the skipped frames (see tracker.py for the same pattern).
+        if _due(frame_num, det_every):
+            results = detector.track(
+                frame, tracker=tracker_config, persist=True, conf=conf, verbose=False,
+                device=device, half=True, imgsz=det_imgsz,
+            )
 
-        boxes = []
-        xyxy, ids, clss, _ = boxes_to_cpu_arrays(results[0].boxes)
-        if xyxy is not None and ids is not None and clss is not None:
-            for box, tid, cls in zip(xyxy, ids, clss):
-                if cls == 0:  # players only
-                    boxes.append([*box, tid, cls])
+            boxes = []
+            xyxy, ids, clss, _ = boxes_to_cpu_arrays(results[0].boxes)
+            if xyxy is not None and ids is not None and clss is not None:
+                for box, tid, cls in zip(xyxy, ids, clss):
+                    if cls == 0:  # players only
+                        boxes.append([*box, tid, cls])
 
         if boxes and not fitted:
             fitted = classifier.fit(frame, boxes)
@@ -586,8 +599,8 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python pipeline.py <video> [--det PATH] [--ocr PATH] [--out FILE] "
-              "[--conf N] [--imgsz N] [--ocr-every N] [--ball-every N] [--ball-roi N] "
-              "[--ball-full-every N]")
+              "[--conf N] [--imgsz N] [--det-every N] [--ocr-every N] [--ball-every N] "
+              "[--ball-roi N] [--ball-full-every N]")
         sys.exit(1)
 
     video       = sys.argv[1]
@@ -596,7 +609,8 @@ if __name__ == "__main__":
     ball_model  = "weights/ball-best.pt"
     out_path    = None
     conf        = 0.4
-    det_imgsz   = 640
+    det_imgsz   = 480
+    det_every   = 1
     ocr_warning = False
     ocr_every   = 5
     ball_every  = 2
@@ -619,6 +633,8 @@ if __name__ == "__main__":
             conf = float(sys.argv[i + 1]); i += 2
         elif sys.argv[i] == "--imgsz" and i + 1 < len(sys.argv):
             det_imgsz = int(sys.argv[i + 1]); i += 2
+        elif sys.argv[i] == "--det-every" and i + 1 < len(sys.argv):
+            det_every = int(sys.argv[i + 1]); i += 2
         elif sys.argv[i] == "--ocr-every" and i + 1 < len(sys.argv):
             ocr_every = int(sys.argv[i + 1]); i += 2
         elif sys.argv[i] == "--ball-every" and i + 1 < len(sys.argv):
@@ -635,4 +651,4 @@ if __name__ == "__main__":
     run_pipeline(video, det_model, ocr_model, ball_model, out_path, conf, ocr_warning,
                  ocr_every=ocr_every, ball_every=ball_every,
                  ball_roi=ball_roi, ball_full_every=ball_full_every,
-                 det_imgsz=det_imgsz)
+                 det_imgsz=det_imgsz, det_every=det_every)
