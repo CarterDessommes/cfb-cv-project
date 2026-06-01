@@ -4,22 +4,25 @@ Uses Ultralytics built-in BoT-SORT with appearance embeddings for
 consistent track IDs across occlusions.
 """
 
-from ultralytics import YOLO
 import numpy as np
 import cv2
 import sys
 import os
 
+from ball_tracker import BallTracker
 from yolo_utils import boxes_to_cpu_arrays
 
 # Constants
-BALL_TRACK_ID_OFFSET = 1000
 DEFAULT_BALL_MODEL = "weights/ball-best.pt"
 DEFAULT_BALL_EVERY = 2
+DEFAULT_BALL_ROI = 320
+DEFAULT_BALL_FULL_EVERY = 30
 
 
 def load_model(model_path):
     """Load YOLO model."""
+    from ultralytics import YOLO
+
     print(f"Loading model: {model_path}")
     return YOLO(model_path)
 
@@ -38,7 +41,8 @@ def _due(frame_num: int, every: int) -> bool:
 
 def track_video(video_path, model_path, output_path=None, confidence=0.4, show=True,
                 ball_model_path=None, ball_confidence=0.3, track_ball=True,
-                ball_every=DEFAULT_BALL_EVERY):
+                ball_every=DEFAULT_BALL_EVERY, ball_roi=DEFAULT_BALL_ROI,
+                ball_full_every=DEFAULT_BALL_FULL_EVERY):
     """Run BoT-SORT tracking on video with Re-ID support and optional ball tracking."""
 
     # Load player/referee model
@@ -46,14 +50,17 @@ def track_video(video_path, model_path, output_path=None, confidence=0.4, show=T
     tracker_config = get_tracker_config_path()
     print(f"Using player tracker config: {tracker_config}")
 
-    # Load ball model if enabled
-    ball_model = None
-    ball_tracker_config = None
+    # Load ROI-based ball tracker if enabled
+    ball_tracker = None
     if track_ball and ball_model_path:
         if os.path.exists(ball_model_path):
-            ball_model = load_model(ball_model_path)
-            ball_tracker_config = get_tracker_config_path(ball=True)
-            print(f"Using ball tracker config: {ball_tracker_config}")
+            print(f"Loading ball tracker: {ball_model_path}")
+            ball_tracker = BallTracker(
+                ball_model_path,
+                ball_conf=ball_confidence,
+                roi_size=ball_roi,
+                full_every=ball_full_every,
+            )
         else:
             print(f"Warning: Ball model not found at {ball_model_path}, disabling ball tracking")
             track_ball = False
@@ -67,8 +74,8 @@ def track_video(video_path, model_path, output_path=None, confidence=0.4, show=T
     if width > 0 and height > 0:
         dummy_frame = np.zeros((height, width, 3), dtype=np.uint8)
         model(dummy_frame, device='mps', half=True, verbose=False)
-        if ball_model is not None:
-            ball_model(dummy_frame, device='mps', half=True, verbose=False)
+        if ball_tracker is not None:
+            ball_tracker.warmup(dummy_frame.shape)
 
     writer = None
     if output_path:
@@ -79,7 +86,7 @@ def track_video(video_path, model_path, output_path=None, confidence=0.4, show=T
     frame_num = 0
     detection_num = 0
     tracks = []  # Persist player/referee tracks across skipped frames
-    ball_tracks = []  # Persist ball tracks across skipped frames
+    ball_xy: tuple[float, float] | None = None  # Persist ball center across skipped frames
     window_name = "BoT-SORT Tracking (Re-ID)"
 
     if show:
@@ -130,54 +137,15 @@ def track_video(video_path, model_path, output_path=None, confidence=0.4, show=T
                     for conf, track_data in detections[:max_count]:
                         tracks.append(track_data)
 
-            # Run ball model tracking if enabled
-            if ball_model is not None and _due(detection_num, ball_every):
-                ball_tracks = []
-                ball_results = ball_model.track(
-                    frame,
-                    tracker=ball_tracker_config,
-                    persist=True,
-                    conf=ball_confidence,
-                    verbose=False,
-                    device='mps',
-                    half=True,
-                )
-
-                # Debug: check what we got
-                boxes_obj = ball_results[0].boxes
-                if boxes_obj is not None and len(boxes_obj) > 0:
-                    num_detections = len(boxes_obj)
-                    has_ids = boxes_obj.id is not None
-                    boxes, track_ids, _, confs = boxes_to_cpu_arrays(boxes_obj)
-                    if frame_num <= 10 or frame_num % 50 == 0:
-                        print(f"\n[DEBUG] Frame {frame_num}: {num_detections} ball detections, confs={confs.round(3)}, has_ids={has_ids}")
-
-                    if has_ids:
-                        # Get all ball detections sorted by confidence
-                        ball_detections = []
-                        for box, track_id, conf in zip(boxes, track_ids, confs):
-                            # Offset track ID to avoid collision with player IDs
-                            offset_id = track_id + BALL_TRACK_ID_OFFSET
-                            ball_detections.append((conf, [*box, offset_id, 2]))  # cls=2 for ball
-
-                        # Keep only the highest confidence ball (max 1)
-                        if ball_detections:
-                            ball_detections.sort(key=lambda x: x[0], reverse=True)
-                            ball_tracks.append(ball_detections[0][1])
-                    else:
-                        # No track IDs yet - use raw detections without tracking
-                        # Get highest confidence detection
-                        best_idx = confs.argmax()
-                        box = boxes[best_idx]
-                        ball_tracks.append([*box, BALL_TRACK_ID_OFFSET, 2])
-                elif frame_num <= 10 or frame_num % 50 == 0:
-                    print(f"\n[DEBUG] Frame {frame_num}: NO ball detections")
+            # Run ROI-based ball tracking if enabled
+            if ball_tracker is not None and _due(detection_num, ball_every):
+                ball_xy = ball_tracker.update(frame)
         # On skipped frames, reuse previous tracks
 
         # Count players and referees
         player_count = sum(1 for t in tracks if int(t[5]) == 0)
         referee_count = sum(1 for t in tracks if int(t[5]) == 1)
-        ball_detected = len(ball_tracks) > 0
+        ball_detected = ball_xy is not None
 
         # Draw player/referee tracks
         for track in tracks:
@@ -196,13 +164,10 @@ def track_video(video_path, model_path, output_path=None, confidence=0.4, show=T
             cv2.putText(frame, f"{label}{track_id}", (x1, y1 - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
-        # Draw ball tracks as bright yellow circles
-        for track in ball_tracks:
-            x1, y1, x2, y2, track_id, cls = [int(v) for v in track]
-            center_x = (x1 + x2) // 2
-            center_y = (y1 + y2) // 2
-            radius = max((x2 - x1) // 2, (y2 - y1) // 2, 10)
-
+        # Draw ball center as a bright yellow circle
+        if ball_xy is not None:
+            center_x, center_y = int(ball_xy[0]), int(ball_xy[1])
+            radius = 10
             # Bright yellow color for ball
             ball_color = (0, 255, 255)  # BGR: yellow
             cv2.circle(frame, (center_x, center_y), radius, ball_color, 3)
@@ -251,6 +216,8 @@ if __name__ == "__main__":
         print("  --ball-model PATH  Path to ball YOLO weights (default: weights/ball-best.pt)")
         print("  --ball-conf N      Ball detection confidence 0.0-1.0 (default: 0.3)")
         print("  --ball-every N     Run ball detector every N tracker detections (default: 2)")
+        print("  --ball-roi N       Ball ROI square size in pixels (default: 320)")
+        print("  --ball-full-every N  Full-frame ball re-acquire interval (default: 30)")
         print("  --no-ball          Disable ball tracking")
         print()
         print("Examples:")
@@ -266,6 +233,8 @@ if __name__ == "__main__":
     ball_model_path = DEFAULT_BALL_MODEL
     ball_confidence = 0.3
     ball_every = DEFAULT_BALL_EVERY
+    ball_roi = DEFAULT_BALL_ROI
+    ball_full_every = DEFAULT_BALL_FULL_EVERY
     track_ball = True
 
     i = 2
@@ -288,6 +257,12 @@ if __name__ == "__main__":
         elif sys.argv[i] == "--ball-every" and i + 1 < len(sys.argv):
             ball_every = int(sys.argv[i + 1])
             i += 2
+        elif sys.argv[i] == "--ball-roi" and i + 1 < len(sys.argv):
+            ball_roi = int(sys.argv[i + 1])
+            i += 2
+        elif sys.argv[i] == "--ball-full-every" and i + 1 < len(sys.argv):
+            ball_full_every = int(sys.argv[i + 1])
+            i += 2
         elif sys.argv[i] == "--no-ball":
             track_ball = False
             i += 1
@@ -296,4 +271,5 @@ if __name__ == "__main__":
 
     track_video(video_path, model_path, output_path, confidence,
                 ball_model_path=ball_model_path, ball_confidence=ball_confidence,
-                track_ball=track_ball, ball_every=ball_every)
+                track_ball=track_ball, ball_every=ball_every, ball_roi=ball_roi,
+                ball_full_every=ball_full_every)
