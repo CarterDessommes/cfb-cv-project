@@ -1,6 +1,6 @@
 {
   "accuracy": {
-    "ball_hit_rate": 0.3333333333333333,
+    "ball_hit_rate": 0.6666666666666666,
     "ball_labeled_count": 3,
     "jersey_accuracy": null,
     "jersey_labeled_count": 0,
@@ -13,14 +13,14 @@
     "team_accuracy": 0.8850574712643678,
     "team_labeled_count": 87
   },
-  "created_at": "2026-05-31T16:30:16",
-  "labels_path": "/Users/carter/conductor/workspaces/cfb-cv-project/columbus/benchmarks/fixtures/bijon_run_labels.json",
+  "created_at": "2026-05-31T21:05:16",
+  "labels_path": "/Users/carter/conductor/workspaces/cfb-cv-project/quito-v1/benchmarks/fixtures/bijon_run_labels.json",
   "predictions": [
     {
       "ball": {
         "center": [
-          809.7822875976562,
-          553.7655029296875
+          817.671875,
+          555.9765625
         ]
       },
       "frame_number": 0,
@@ -288,7 +288,12 @@
       ]
     },
     {
-      "ball": null,
+      "ball": {
+        "center": [
+          808.9375,
+          542.875
+        ]
+      },
       "frame_number": 60,
       "players": [
         {
@@ -1274,12 +1279,7 @@
       ]
     },
     {
-      "ball": {
-        "center": [
-          1468.721923828125,
-          271.5111389160156
-        ]
-      },
+      "ball": null,
       "frame_number": 295,
       "players": [
         {
@@ -1346,12 +1346,12 @@
     "team_accuracy_drop": 0.03
   },
   "timings": {
-    "fps": 4.829338873215173,
-    "mean_frame_seconds": 0.20527103407471872,
-    "model_load_seconds": 1.7311305000039283,
-    "p95_frame_seconds": 0.25547266700596083,
-    "processing_seconds": 61.29203350000898,
-    "total_seconds": 63.02316400001291
+    "fps": 7.3881439913696285,
+    "mean_frame_seconds": 0.13387255478079857,
+    "model_load_seconds": 1.32375820800371,
+    "p95_frame_seconds": 0.18263062500045635,
+    "processing_seconds": 40.06418937499984,
+    "total_seconds": 41.38794758300355
   },
-  "video_path": "/Users/carter/conductor/workspaces/cfb-cv-project/columbus/test media/videos/bijon_run.mp4"
+  "video_path": "/Users/carter/conductor/workspaces/cfb-cv-project/quito-v1/test media/videos/bijon_run.mp4"
 }
