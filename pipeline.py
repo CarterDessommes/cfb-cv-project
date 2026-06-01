@@ -3,13 +3,17 @@ Full field-state pipeline: player location + team + jersey number.
 
 Usage:
     python pipeline.py <video> [--det PATH] [--ocr PATH] [--ball PATH] [--out FILE]
-                              [--conf N] [--no-ball] [--ocr-every N] [--ball-every N]
+                              [--conf N] [--imgsz N] [--no-ball] [--ocr-every N]
+                              [--ball-every N]
 
 Defaults:
     --det        weights/player-best.pt
     --ocr        weights/jersey_ocr.pt
     --ball       weights/ball-best.pt
     --conf       0.4
+    --imgsz      640 (YOLO inference resolution for player detection; must be a
+                      multiple of 32. Smaller = faster but lower accuracy — the
+                      single biggest compute lever since detection runs every frame)
     --ocr-every  5   (run jersey OCR every Nth frame; reuse cached numbers between)
     --ball-every 2   (run ball tracker every Nth frame; reuse last position between.
                       ROI passes are cheap, so 1 (every frame) is now affordable)
@@ -205,7 +209,7 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
                            ocr_model_path="weights/jersey_ocr.pt",
                            ball_model_path="weights/ball-best.pt",
                            homography_path="homographies.npz", conf=0.4,
-                           ocr_every=5, ball_every=1):
+                           ocr_every=5, ball_every=1, det_imgsz=640):
     """Run the field-state pipeline headlessly and return predictions + timings.
 
     `frame_numbers` are zero-based video frame indices, matching OpenCV and the
@@ -254,7 +258,7 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
 
         results = detector.track(
             frame, persist=True, conf=conf, verbose=False,
-            device=device, half=True,
+            device=device, half=True, imgsz=det_imgsz,
         )
 
         boxes = []
@@ -352,7 +356,8 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
 
 def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=None,
                  output_path=None, conf=0.4, ocr_warning=False,
-                 ocr_every=5, ball_every=2, ball_roi=320, ball_full_every=30):
+                 ocr_every=5, ball_every=2, ball_roi=320, ball_full_every=30,
+                 det_imgsz=640):
     from ultralytics import YOLO
 
     _NUMBER_HISTORY.clear()
@@ -377,7 +382,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
 
     if width > 0 and height > 0:
         dummy_frame = np.zeros((height, width, 3), dtype=np.uint8)
-        detector(dummy_frame, device=device, half=True, verbose=False)
+        detector(dummy_frame, device=device, half=True, verbose=False, imgsz=det_imgsz)
         if ball_tracker:
             ball_tracker.warmup(dummy_frame.shape)
     ocr.warmup()
@@ -405,7 +410,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
 
         results = detector.track(
             frame, tracker=tracker_config, persist=True, conf=conf, verbose=False,
-            device=device, half=True,
+            device=device, half=True, imgsz=det_imgsz,
         )
 
         boxes = []
@@ -574,7 +579,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python pipeline.py <video> [--det PATH] [--ocr PATH] [--out FILE] "
-              "[--conf N] [--ocr-every N] [--ball-every N] [--ball-roi N] "
+              "[--conf N] [--imgsz N] [--ocr-every N] [--ball-every N] [--ball-roi N] "
               "[--ball-full-every N]")
         sys.exit(1)
 
@@ -584,6 +589,7 @@ if __name__ == "__main__":
     ball_model  = "weights/ball-best.pt"
     out_path    = None
     conf        = 0.4
+    det_imgsz   = 640
     ocr_warning = False
     ocr_every   = 5
     ball_every  = 2
@@ -604,6 +610,8 @@ if __name__ == "__main__":
             out_path = sys.argv[i + 1]; i += 2
         elif sys.argv[i] == "--conf" and i + 1 < len(sys.argv):
             conf = float(sys.argv[i + 1]); i += 2
+        elif sys.argv[i] == "--imgsz" and i + 1 < len(sys.argv):
+            det_imgsz = int(sys.argv[i + 1]); i += 2
         elif sys.argv[i] == "--ocr-every" and i + 1 < len(sys.argv):
             ocr_every = int(sys.argv[i + 1]); i += 2
         elif sys.argv[i] == "--ball-every" and i + 1 < len(sys.argv):
@@ -619,4 +627,5 @@ if __name__ == "__main__":
 
     run_pipeline(video, det_model, ocr_model, ball_model, out_path, conf, ocr_warning,
                  ocr_every=ocr_every, ball_every=ball_every,
-                 ball_roi=ball_roi, ball_full_every=ball_full_every)
+                 ball_roi=ball_roi, ball_full_every=ball_full_every,
+                 det_imgsz=det_imgsz)
