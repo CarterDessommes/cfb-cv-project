@@ -46,10 +46,10 @@ def test_label_flip_reuses_cached_embeddings(monkeypatch):
         [0, 0, 20, 20, 1, 0],
         [30, 0, 50, 20, 2, 0],
     ]
-    labels = clf.classify(frame, boxes)
+    clf.classify(frame, boxes)
     embeds_after_classify = counter.crops_embedded
 
-    changed = clf.update_offense_from_ball(np.array([40.0, 10.0]), boxes, labels)
+    changed = clf.update_offense_from_ball(np.array([40.0, 10.0]), boxes, [0, 1])
     labels_after_flip = clf.classify(frame, boxes)
 
     assert changed is True
