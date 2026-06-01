@@ -223,7 +223,7 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
     device        = _best_device()
     classifier    = TeamClassifier()
     ocr           = JerseyOCR(ocr_model_path)
-    ball_detector = BallDetector(ball_model_path) if ball_model_path else None
+    ball_detector = BallTracker(ball_model_path) if ball_model_path else None
     homography    = load_homographies(homography_path)
     model_load_seconds = time.perf_counter() - load_start
 
@@ -277,7 +277,7 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
                         cluster_by_id[int(b[4])] = c
 
         if ball_detector and _due(frame_num, ball_every):
-            ball_xy = ball_detector.detect(frame)
+            ball_xy = ball_detector.update(frame)
 
         def _labels():
             return ([classifier.cluster_to_label(cluster_by_id.get(int(b[4]), -1)) for b in boxes]
@@ -505,8 +505,10 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
 
             trail = _TRAIL.setdefault(p["track_id"], [])
             trail.append((cx, cy))
-            for j in range(1, len(trail)):
-                cv2.line(canvas, trail[j - 1], trail[j], color, 1)
+            if len(trail) > _TRAIL_MAX:
+                trail.pop(0)
+            if len(trail) > 1:
+                cv2.polylines(canvas, [np.array(trail, dtype=np.int32)], False, color, 1)
 
             cv2.circle(canvas, (cx, cy), 7, color, -1)
             cv2.circle(canvas, (cx, cy), 7, (255, 255, 255), 1)
