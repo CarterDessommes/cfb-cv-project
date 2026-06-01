@@ -376,6 +376,10 @@ def compare_to_baseline(current: dict[str, Any], baseline: dict[str, Any]) -> tu
 def print_summary(run: dict[str, Any]) -> None:
     timings = run["timings"]
     accuracy = run["accuracy"]
+    config = run.get("config")
+    if config:
+        print(f"Config: imgsz={config['imgsz']} det_every={config['det_every']} "
+              f"ocr_every={config['ocr_every']} ball_every={config['ball_every']}")
     print(f"FPS: {timings['fps']:.2f}")
     print(f"Mean frame: {timings['mean_frame_seconds']:.4f}s")
     print(f"p95 frame: {timings['p95_frame_seconds']:.4f}s")
@@ -415,12 +419,21 @@ def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
         ocr_every=args.ocr_every,
         ball_every=args.ball_every,
         det_imgsz=args.imgsz,
+        det_every=args.det_every,
     )
     return {
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "video_path": str(args.video),
         "labels_path": str(args.labels),
         "thresholds": THRESHOLDS,
+        "config": {
+            "conf": args.conf,
+            "imgsz": args.imgsz,
+            "det_every": args.det_every,
+            "ocr_every": args.ocr_every,
+            "ball_every": args.ball_every,
+            "no_ball": args.no_ball,
+        },
         "timings": predictions["timings"],
         "accuracy": compute_accuracy_metrics(labels, predictions),
         "predictions": predictions["predictions"],
@@ -451,7 +464,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ball", type=Path, default=ROOT / "weights/ball-best.pt")
     parser.add_argument("--homography", type=Path, default=ROOT / "homographies.npz")
     parser.add_argument("--conf", type=float, default=0.4)
-    parser.add_argument("--imgsz", type=int, default=640)
+    parser.add_argument("--imgsz", type=int, default=480)
+    parser.add_argument("--det-every", type=int, default=1)
     parser.add_argument("--ocr-every", type=int, default=5)
     parser.add_argument("--ball-every", type=int, default=1)
     parser.add_argument("--no-ball", action="store_true")
