@@ -7,6 +7,10 @@ venv/
 .venv/
 *.onnx
 *.png
+*.log
+*.tsv
+*.zip
+*.json
 
 # SAM2 model weights (too large for Git)
 sam2*.pt
