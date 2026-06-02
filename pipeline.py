@@ -43,11 +43,26 @@ _VLM_MIN_READS   = 2    # minimum reads before displaying anything
 _VLM_CONF_RATIO  = 0.5  # top prediction must appear in >= this fraction of the window
 
 _VLM_BATCH_PROMPT = (
-    "Each image above shows a football player. "
-    "What is the jersey number printed on each player's chest? "
-    "Note: '0' and '00' are valid football jersey numbers — do not treat them as empty or missing. "
-    "Reply with exactly {n} lines — one per image in order — containing ONLY the jersey number digits "
-    "(e.g. '0', '42', or '7'), or the letter X if no number is clearly visible. No other text."
+    "The {n} images above are tight crops of the chests (fronts) of American "
+    "college football players' jerseys, in order. Read the jersey number on each.\n"
+    "\n"
+    "Rules for every image:\n"
+    "1. Valid jersey numbers are 0 through 99 — a single digit (0-9) or two digits "
+    "(00-99). '0' and '00' are both valid and are DIFFERENT numbers; never treat "
+    "them as empty or missing.\n"
+    "2. Report ONLY the large number on the jersey fabric. Ignore the player's "
+    "name, team logo, brand mark, collar/sleeve lettering, and any TV score "
+    "graphics or overlays.\n"
+    "3. If the number has two digits, both must be fully visible. If a fold, arm, "
+    "or crop edge hides part of a digit, or only one digit of a two-digit number "
+    "shows, the number is NOT readable.\n"
+    "4. Do NOT guess. If the digits are blurred, glared, too small, or you cannot "
+    "confidently tell similar shapes apart (6 vs 8, 1 vs 7, 3 vs 8, 0 vs 6), the "
+    "number is NOT readable.\n"
+    "\n"
+    "Output exactly {n} lines, one per image in the given order. Each line contains "
+    "ONLY the digits (e.g. 0, 42, 7, or 00), or a single X if the number is not "
+    "fully and clearly readable. No numbering, labels, or any other text."
 )
 
 
@@ -152,25 +167,6 @@ def _box_iou(a, b) -> float:
     return inter / ((ax2 - ax1) * (ay2 - ay1) + (bx2 - bx1) * (by2 - by1) - inter)
 
 
-def _max_overlap(box, all_boxes, self_idx) -> float:
-    """Max fraction of `box`'s area covered by any other box in all_boxes."""
-    ax1, ay1, ax2, ay2 = float(box[0]), float(box[1]), float(box[2]), float(box[3])
-    a_area = max(1.0, (ax2 - ax1) * (ay2 - ay1))
-    best = 0.0
-    for k, other in enumerate(all_boxes):
-        if k == self_idx:
-            continue
-        bx1, by1, bx2, by2 = float(other[0]), float(other[1]), float(other[2]), float(other[3])
-        ix1 = max(ax1, bx1); iy1 = max(ay1, by1)
-        ix2 = min(ax2, bx2); iy2 = min(ay2, by2)
-        inter = max(0.0, ix2 - ix1) * max(0.0, iy2 - iy1)
-        best = max(best, inter / a_area)
-    return best
-
-
-_OVERLAP_THRESHOLD = 0.15  # fall back to tight crop above this
-
-
 def _pose_crop(frame, kps, box, fw):
     """Return (crop, rect) using pose for vertical placement and bbox for horizontal width."""
     ls, rs = kps[_SHOULDER_L], kps[_SHOULDER_R]
@@ -207,43 +203,41 @@ def _is_forward_facing(kps, box) -> bool:
     return (shoulder_span / bbox_w) > _SIDE_FACING_THRESHOLD
 
 
+# Saved/inference crop geometry. Both dataset creation (label_crops.py) and
+# inference (_crops below) use _number_crop so the model sees identical inputs.
+# The narrow _pose_crop above is used only for *gating* (orientation/size),
+# never for the crop we actually feed to the jersey reader.
+_CROP_BOTTOM    = 0.95   # keep from box top down to this fraction of player height
+_CROP_WIDTH_PAD = 0.15   # widen past the bbox left/right by this fraction
+
+
+def _number_crop(frame, box):
+    """Generous crop covering (nearly) the whole player so the chest number is
+    never clipped by keypoint error, an off-center number, or out-flung arms."""
+    x1, y1, x2, y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
+    h, w = y2 - y1, x2 - x1
+    ty1 = max(0, y1)
+    ty2 = min(frame.shape[0], y1 + int(h * _CROP_BOTTOM))
+    sx1 = max(0, x1 - int(w * _CROP_WIDTH_PAD))
+    sx2 = min(frame.shape[1], x2 + int(w * _CROP_WIDTH_PAD))
+    return frame[ty1:ty2, sx1:sx2]
+
+
 def _crops(frame, boxes, pose_kps_list=None, full_box=False):
+    """Jersey-number crops with identical geometry to the training dataset.
+
+    pose_kps_list / full_box are kept for call-site compatibility but no longer
+    affect the crop — geometry is _number_crop so inference matches dataset
+    creation in label_crops.py. The caller still gates orientation via pose.
+    """
     crops, indices, rects = [], [], []
-    fw = frame.shape[1]
     for i, box in enumerate(boxes):
-        kps = pose_kps_list[i] if pose_kps_list is not None and i < len(pose_kps_list) else None
-
-        crop, rect = None, None
-
-        if full_box:
-            overlap = _max_overlap(box[:4], [b[:4] for b in boxes], i)
-            if overlap < _OVERLAP_THRESHOLD:
-                # Isolated enough — give VLM the full player
-                x1, y1, x2, y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
-                crop = frame[y1:y2, x1:x2]
-                rect = (x1, y1, x2, y2)
-            # else: fall through to pose-guided crop below
-
-        if crop is None:
-            # Pose-guided crop (or heuristic fallback)
-            if kps is not None:
-                crop, rect = _pose_crop(frame, kps, box, fw)
-            if crop is None:
-                x1, y1, x2, y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
-                h      = y2 - y1
-                ty1    = y1 + int(h * 0.15)
-                ty2    = y1 + int(h * 0.45)
-                crop_h = ty2 - ty1
-                cx     = (x1 + x2) // 2
-                sx1    = max(0, cx - crop_h // 2)
-                sx2    = min(fw, sx1 + crop_h)
-                crop   = frame[ty1:ty2, sx1:sx2]
-                rect   = (sx1, ty1, sx2, ty2)
-
+        crop = _number_crop(frame, box)
         if crop.shape[0] >= _MIN_CROP_PX and crop.shape[1] >= _MIN_CROP_PX:
-            crops.append(crop)
+            x1, y1, x2, y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
+            crops.append(np.ascontiguousarray(crop))
             indices.append(i)
-            rects.append(rect)
+            rects.append((x1, y1, x2, y2))
     return crops, indices, rects
 
 

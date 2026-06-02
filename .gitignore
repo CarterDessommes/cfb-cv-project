@@ -6,6 +6,7 @@ __pycache__/
 venv/
 .venv/
 *.onnx
+*.png
 
 # SAM2 model weights (too large for Git)
 sam2*.pt
