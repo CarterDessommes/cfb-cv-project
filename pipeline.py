@@ -3,13 +3,14 @@ Full field-state pipeline: player location + team + jersey number.
 
 Usage:
     python pipeline.py <video> [--det PATH] [--ocr PATH] [--ball PATH] [--out FILE]
-                              [--conf N] [--imgsz N] [--no-ball] [--det-every N]
-                              [--ocr-every N] [--ball-every N]
+                              [--conf N] [--imgsz N] [--no-ball] [--ball-11m]
+                              [--det-every N] [--ocr-every N] [--ball-every N]
 
 Defaults:
     --det        weights/player-best.pt
     --ocr        weights/jersey_ocr.pt
-    --ball       weights/ball-best.pt
+    --ball       weights/ball-best.pt (YOLO 12M)
+    --ball-11m   use weights/ball-yolo11m.pt (YOLO 11M) instead
     --conf       0.4
     --imgsz      480 (YOLO inference resolution for player detection; must be a
                       multiple of 32. Smaller = faster but lower accuracy — one of
@@ -528,7 +529,7 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python pipeline.py <video> [--det PATH] [--ocr PATH] [--out FILE] "
               "[--conf N] [--imgsz N] [--det-every N] [--ocr-every N] [--ball-every N] "
-              "[--ball-roi N] [--ball-full-every N]")
+              "[--ball-roi N] [--ball-full-every N] [--ball-11m] [--no-ball]")
         sys.exit(1)
 
     video       = sys.argv[1]
@@ -555,6 +556,8 @@ if __name__ == "__main__":
             ball_model = sys.argv[i + 1]; i += 2
         elif sys.argv[i] == "--no-ball":
             ball_model = None; i += 1
+        elif sys.argv[i] == "--ball-11m":
+            ball_model = "weights/ball-yolo11m.pt"; i += 1
         elif sys.argv[i] == "--out" and i + 1 < len(sys.argv):
             out_path = sys.argv[i + 1]; i += 2
         elif sys.argv[i] == "--conf" and i + 1 < len(sys.argv):
