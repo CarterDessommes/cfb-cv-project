@@ -8,7 +8,7 @@ Usage:
 
 Defaults:
     --det        weights/player-best.pt
-    --ocr        weights/jersey_ocr.pt
+    --ocr        weights/jersey_best.pt
     --ball       weights/ball-best.pt (YOLO 12M)
     --ball-11m   use weights/ball-yolo11m.pt (YOLO 11M) instead
     --conf       0.4
@@ -136,7 +136,7 @@ def _p95(values: list[float]) -> float:
 
 
 def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/player-best.pt",
-                           ocr_model_path="weights/jersey_ocr.pt",
+                           ocr_model_path="weights/jersey_best.pt",
                            ball_model_path="weights/ball-best.pt",
                            homography_path="homographies.npz", conf=0.4,
                            ocr_every=5, ball_every=1, det_imgsz=480, det_every=1):
@@ -534,7 +534,7 @@ if __name__ == "__main__":
 
     video       = sys.argv[1]
     det_model   = "weights/player-best.pt"
-    ocr_model   = "weights/jersey_ocr.pt"
+    ocr_model   = "weights/jersey_best.pt"
     ball_model  = "weights/ball-best.pt"
     out_path    = None
     conf        = 0.4

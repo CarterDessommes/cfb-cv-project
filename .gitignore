@@ -7,6 +7,10 @@ venv/
 .venv/
 *.onnx
 benchmarks/results/
+*.png
+*.tsv
+*.log
+*.json
 
 # Benchmark labeling source (regenerable; not needed to run benchmarks)
 benchmarks/fixtures/roboflow/
