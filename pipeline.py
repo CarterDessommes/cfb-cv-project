@@ -3,24 +3,17 @@ Full field-state pipeline: player location + team + jersey number.
 
 Usage:
     python pipeline.py <video> [--det PATH] [--ocr PATH] [--ball PATH] [--out FILE] [--conf N] [--no-ball]
-    python pipeline.py <video> --vlm [--vlm-every N] [--pose-every N] ...
 
 Defaults:
     --det        weights/player-best.pt
-    --ocr        weights/jersey_ocr.pt   (ignored when --vlm is set)
+    --ocr        weights/best.pt
     --ball       weights/ball-best.pt
     --conf       0.4
     --pose-every 3    (run pose every N frames)
-    --vlm-every  30   (query VLM per track every N frames, VLM mode only)
-    --vlm-model  ID   (HuggingFace model ID, default Qwen/Qwen2.5-VL-3B-Instruct)
 """
 
-import re
 import sys
-import os
 import cv2
-import shutil
-import tempfile
 import numpy as np
 from collections import Counter
 from ultralytics import YOLO
@@ -32,88 +25,6 @@ _NUMBER_HISTORY: dict[int, list[tuple[str, float]]] = {}
 _NUMBER_LOCKED:  dict[int, str] = {}
 _VOTE_WINDOW = 75  # ~2.5 s at 30 fps
 _LOCK_VOTES  = 8   # confident reads needed to permanently lock a tracklet's number
-
-# VLM-mode state
-# Each entry is a list of predictions (str digits or None = unreadable) in order.
-# None entries count against confidence so consistently-occluded players show "?".
-_VLM_READS:      dict[int, list[str | None]] = {}
-_VLM_CONFIRM     = 3    # consecutive identical non-None reads required to lock
-_VLM_WINDOW      = 10   # rolling window size for confidence calculation
-_VLM_MIN_READS   = 2    # minimum reads before displaying anything
-_VLM_CONF_RATIO  = 0.5  # top prediction must appear in >= this fraction of the window
-
-_VLM_BATCH_PROMPT = (
-    "The {n} images above are tight crops of the chests (fronts) of American "
-    "college football players' jerseys, in order. Read the jersey number on each.\n"
-    "\n"
-    "Rules for every image:\n"
-    "1. Valid jersey numbers are 0 through 99 — a single digit (0-9) or two digits "
-    "(00-99). '0' and '00' are both valid and are DIFFERENT numbers; never treat "
-    "them as empty or missing.\n"
-    "2. Report ONLY the large number on the jersey fabric. Ignore the player's "
-    "name, team logo, brand mark, collar/sleeve lettering, and any TV score "
-    "graphics or overlays.\n"
-    "3. If the number has two digits, both must be fully visible. If a fold, arm, "
-    "or crop edge hides part of a digit, or only one digit of a two-digit number "
-    "shows, the number is NOT readable.\n"
-    "4. Do NOT guess. If the digits are blurred, glared, too small, or you cannot "
-    "confidently tell similar shapes apart (6 vs 8, 1 vs 7, 3 vs 8, 0 vs 6), the "
-    "number is NOT readable.\n"
-    "\n"
-    "Output exactly {n} lines, one per image in the given order. Each line contains "
-    "ONLY the digits (e.g. 0, 42, 7, or 00), or a single X if the number is not "
-    "fully and clearly readable. No numbering, labels, or any other text."
-)
-
-
-def _parse_vlm_batch(response: str, n: int) -> list[str | None]:
-    """Parse a structured VLM response (one answer per line) into n results."""
-    results: list[str | None] = []
-    for raw in response.splitlines():
-        line = raw.strip()
-        if not line:
-            continue
-        # Strip list numbering only when the separator is followed by more content
-        # (e.g. "1. 42", "2: 7"). A bare "0", "0.", or "42." is the answer itself.
-        m = re.match(r"^\d+[.:\)]\s+(.+)$", line)
-        if m:
-            line = m.group(1).strip()
-        digits = "".join(c for c in line if c.isdigit())
-        results.append(digits if digits else None)
-        if len(results) >= n:
-            break
-    results += [None] * max(0, n - len(results))
-    return results[:n]
-
-
-def _vlm_record(track_id: int, pred: str | None) -> None:
-    """Record one VLM read (None = unreadable) and lock the track if confident."""
-    if track_id in _NUMBER_LOCKED:
-        return
-    reads = _VLM_READS.setdefault(track_id, [])
-    reads.append(pred)
-    tail = reads[-_VLM_CONFIRM:]
-    if len(tail) == _VLM_CONFIRM and len(set(tail)) == 1 and tail[0] is not None:
-        _NUMBER_LOCKED[track_id] = tail[0]
-
-
-def _vlm_display(track_id: int) -> str:
-    """
-    Return the best current number for display, or '?' if not yet confident.
-    Never modifies state — safe to call every frame.
-    """
-    if track_id in _NUMBER_LOCKED:
-        return _NUMBER_LOCKED[track_id]
-    window = _VLM_READS.get(track_id, [])[-_VLM_WINDOW:]
-    if len(window) < _VLM_MIN_READS:
-        return "?"
-    non_none = [r for r in window if r is not None]
-    if not non_none:
-        return "?"
-    top, count = Counter(non_none).most_common(1)[0]
-    if count / len(window) < _VLM_CONF_RATIO:
-        return "?"
-    return top
 
 
 def _stable_number(track_id: int, pred: str, conf: float) -> str:
@@ -148,8 +59,8 @@ def _put_text(img, text, pos, scale=0.5, color=(255, 255, 255), thickness=1):
     cv2.putText(img, text, (x, y), font, scale, color, thickness, cv2.LINE_AA)
 
 _MIN_CROP_PX = 10
-_OCR_CONF_THRESHOLD = 0.6
-_BLUR_THRESHOLD = 50
+_OCR_CONF_THRESHOLD = 0.35
+_BLUR_THRESHOLD = 20
 _SHOULDER_L, _SHOULDER_R = 5, 6
 _HIP_L,      _HIP_R      = 11, 12
 _KP_CONF_MIN = 0.3
@@ -223,13 +134,7 @@ def _number_crop(frame, box):
     return frame[ty1:ty2, sx1:sx2]
 
 
-def _crops(frame, boxes, pose_kps_list=None, full_box=False):
-    """Jersey-number crops with identical geometry to the training dataset.
-
-    pose_kps_list / full_box are kept for call-site compatibility but no longer
-    affect the crop — geometry is _number_crop so inference matches dataset
-    creation in label_crops.py. The caller still gates orientation via pose.
-    """
+def _crops(frame, boxes, pose_kps_list=None):
     crops, indices, rects = [], [], []
     for i, box in enumerate(boxes):
         crop = _number_crop(frame, box)
@@ -257,116 +162,91 @@ class BallDetector:
         return float((xyxy[0] + xyxy[2]) / 2), float((xyxy[1] + xyxy[3]) / 2)
 
 
+_OCR_PANEL_W     = 300   # width of the right-hand debug panel (px)
+_OCR_PANEL_CROP_W = 260  # width each crop thumbnail is scaled to
+
+
+def _build_ocr_panel(crops, ocr_results, track_ids, frame_h: int) -> np.ndarray:
+    """Right-side debug panel: each crop + its top-5 predictions."""
+    panel = np.full((frame_h, _OCR_PANEL_W, 3), 28, dtype=np.uint8)
+    font  = cv2.FONT_HERSHEY_SIMPLEX
+    y     = 6
+
+    for crop, result, tid in zip(crops, ocr_results, track_ids):
+        top1, top5, blur_var = result
+        entry_h = 0
+
+        # header
+        hdr = f"Track #{tid}   blur={blur_var:.0f}"
+        cv2.putText(panel, hdr, (4, y + 13), font, 0.38, (160, 160, 160), 1)
+        y += 18;  entry_h += 18
+
+        # thumbnail
+        h, w    = crop.shape[:2]
+        scale   = _OCR_PANEL_CROP_W / max(w, 1)
+        thumb_h = max(1, int(h * scale))
+        thumb_h = min(thumb_h, frame_h // 6)
+        thumb   = cv2.resize(crop, (_OCR_PANEL_CROP_W, thumb_h), interpolation=cv2.INTER_LANCZOS4)
+        if y + thumb_h <= frame_h:
+            panel[y:y+thumb_h, 4:4+_OCR_PANEL_CROP_W] = thumb
+        y += thumb_h + 3;  entry_h += thumb_h + 3
+
+        # top-5 guesses
+        if not top5:
+            cv2.putText(panel, "  BLURRY (filtered)", (4, y + 12), font, 0.37, (80, 80, 200), 1)
+            y += 15;  entry_h += 15
+        else:
+            for rank, (label, conf) in enumerate(top5):
+                is_winner = (rank == 0 and top1 is not None)
+                color = (0, 210, 100) if is_winner else (130, 130, 130)
+                cv2.putText(panel, f"  {rank+1}. {label}: {conf:.3f}",
+                            (4, y + 12), font, 0.37, color, 1)
+                y += 15;  entry_h += 15
+
+        # divider
+        y += 4
+        if y < frame_h:
+            cv2.line(panel, (4, y), (_OCR_PANEL_W - 4, y), (55, 55, 55), 1)
+        y += 5
+
+        if y >= frame_h - 30:
+            break
+
+    if not crops:
+        cv2.putText(panel, "No crops this frame", (4, 20), font, 0.4, (100, 100, 100), 1)
+
+    return panel
+
+
 class JerseyOCR:
     def __init__(self, model_path: str):
         self.model  = YOLO(model_path)
         self.device = _best_device()
 
-    def predict(self, crops: list) -> list[tuple[str, float] | None]:
+    def predict(self, crops: list) -> list[tuple]:
+        """
+        Returns one 3-tuple per crop: (top1, top5, blur_var)
+          top1     = (label, conf) if conf >= _OCR_CONF_THRESHOLD, else None
+          top5     = [(label, conf), ...] — always 5 entries when not blurry
+          blur_var = Laplacian variance of the crop
+        When a crop fails the blur gate, top1=None and top5=[].
+        """
         if not crops:
             return []
         results = self.model(crops, device=self.device, verbose=False)
         out = []
         for crop, r in zip(crops, results):
-            if cv2.Laplacian(crop, cv2.CV_64F).var() < _BLUR_THRESHOLD:
-                out.append(None)
+            blur_var = float(cv2.Laplacian(crop, cv2.CV_64F).var())
+            if blur_var < _BLUR_THRESHOLD:
+                out.append((None, [], blur_var))
                 continue
-            conf = float(r.probs.top1conf)
-            out.append((r.names[r.probs.top1], conf) if conf >= _OCR_CONF_THRESHOLD else None)
+            top5_idx  = r.probs.top5
+            top5_conf = r.probs.top5conf.cpu().numpy()
+            top5      = [(r.names[i], float(c)) for i, c in zip(top5_idx, top5_conf)]
+            top1_label, top1_conf = top5[0]
+            top1 = (top1_label, top1_conf) if top1_conf >= _OCR_CONF_THRESHOLD else None
+            out.append((top1, top5, blur_var))
         return out
-
-
-class VLMJerseyReader:
-    """
-    Lazy-loaded Qwen2.5-VL reader for jersey numbers.
-
-    All pending crops for a frame are sent in a SINGLE forward pass so the model
-    is called at most once per frame regardless of how many players need querying.
-    """
-
-    def __init__(self, model_id: str = "Qwen/Qwen2.5-VL-3B-Instruct"):
-        self._model_id  = model_id
-        self._model     = None
-        self._processor = None
-        self._pvi_fn    = None
-
-    def _load(self):
-        if self._model is not None:
-            return
-        try:
-            from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
-            from qwen_vl_utils import process_vision_info
-        except ImportError:
-            print("ERROR: VLM deps missing. Run:\n  pip install transformers accelerate qwen-vl-utils")
-            sys.exit(1)
-        print(f"Loading {self._model_id} …", flush=True)
-        self._model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-            self._model_id, torch_dtype="auto", device_map="auto"
-        )
-        self._processor = AutoProcessor.from_pretrained(self._model_id)
-        self._pvi_fn    = process_vision_info
-        print("VLM ready.", flush=True)
-
-    def predict_batch(self, crops: list) -> list[str | None]:
-        """
-        Run VLM on a list of BGR crops in one forward pass.
-        Returns digit strings (e.g. '42') or None for blurry / unreadable crops.
-        """
-        if not crops:
-            return []
-
-        # Pre-filter blurry crops — only pass sharp ones to the model
-        sharp = [cv2.Laplacian(c, cv2.CV_64F).var() >= _BLUR_THRESHOLD for c in crops]
-        sharp_crops = [c for c, ok in zip(crops, sharp) if ok]
-        if not sharp_crops:
-            return [None] * len(crops)
-
-        self._load()
-
-        n      = len(sharp_crops)
-        tmpdir = tempfile.mkdtemp(prefix="vlm_jersey_")
-        try:
-            # Write all sharp crops to a temp dir, build a multi-image message
-            content: list[dict] = []
-            for i, crop in enumerate(sharp_crops):
-                path = os.path.join(tmpdir, f"c{i}.png")
-                cv2.imwrite(path, crop)
-                content.append({"type": "image", "image": f"file://{os.path.abspath(path)}"})
-
-            content.append({
-                "type": "text",
-                "text": _VLM_BATCH_PROMPT.format(n=n),
-            })
-
-            messages  = [{"role": "user", "content": content}]
-            text      = self._processor.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True
-            )
-            image_inputs, video_inputs = self._pvi_fn(messages)
-            inputs = self._processor(
-                text=[text], images=image_inputs, videos=video_inputs,
-                padding=True, return_tensors="pt",
-            ).to(self._model.device)
-
-            ids = self._model.generate(**inputs, max_new_tokens=n * 8)
-            response = self._processor.batch_decode(
-                ids[:, inputs.input_ids.shape[1]:], skip_special_tokens=True
-            )[0].strip()
-        finally:
-            shutil.rmtree(tmpdir, ignore_errors=True)
-
-        parsed = _parse_vlm_batch(response, n)
-
-        # Re-expand to original crop count, inserting None for blurry slots
-        out: list[str | None] = []
-        it = iter(parsed)
-        for ok in sharp:
-            out.append(next(it) if ok else None)
-        return out
-
-    def predict(self, crop) -> str | None:
-        """Single-crop convenience wrapper (used by label_crops.py)."""
-        return self.predict_batch([crop])[0]
 
 
 class PoseEstimator:
@@ -398,24 +278,16 @@ class PoseEstimator:
 
 def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=None,
                  pose_model_path="weights/yolo11n-pose.pt",
-                 output_path=None, conf=0.4, ocr_warning=False,
-                 use_vlm=False, pose_every=3, vlm_every=12,
-                 vlm_model_id="Qwen/Qwen2.5-VL-3B-Instruct"):
+                 output_path=None, conf=0.4, ocr_warning=False, pose_every=3):
     _NUMBER_HISTORY.clear()
     _NUMBER_LOCKED.clear()
-    _VLM_READS.clear()
 
     device        = _best_device()
     detector      = YOLO(det_model_path)
     classifier    = TeamClassifier()
     ball_detector = BallDetector(ball_model_path) if ball_model_path else None
     pose_est      = PoseEstimator(pose_model_path) if pose_model_path else None
-
-    if use_vlm:
-        jersey_reader: VLMJerseyReader | JerseyOCR = VLMJerseyReader(vlm_model_id)
-        _vlm_last_frame: dict[int, int] = {}
-    else:
-        jersey_reader = JerseyOCR(ocr_model_path)
+    jersey_reader = JerseyOCR(ocr_model_path)
 
     fitted = False
 
@@ -471,7 +343,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
             cached_pose_kps = pose_est.get_keypoints_for_boxes(frame, boxes) if pose_est else None
         pose_kps = cached_pose_kps
 
-        crops, valid_idx, _ = _crops(frame, boxes, pose_kps, full_box=use_vlm)
+        crops, valid_idx, _ = _crops(frame, boxes, pose_kps)
 
         # Orientation gate: skip side-facing players
         gated_crops, gated_box_idx = [], []
@@ -484,49 +356,17 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
             gated_box_idx.append(box_i)
 
         # ── Jersey number reading ────────────────────────────────────────
-        if use_vlm:
-            # Collect all crops due for a VLM query this frame, then run ONE
-            # batched forward pass instead of one per player.
-            _VLM_MIN_PX = 80
-            pending_crops: list = []
-            pending_tids:  list[int] = []
-            for crop, box_i in zip(gated_crops, gated_box_idx):
-                tid = int(boxes[box_i][4])
-                if tid in _NUMBER_LOCKED:
-                    continue
-                if frame_num - _vlm_last_frame.get(tid, -vlm_every) < vlm_every:
-                    continue
-                if crop.shape[0] < _VLM_MIN_PX or crop.shape[1] < _VLM_MIN_PX:
-                    _vlm_last_frame[tid] = frame_num  # don't retry tiny crops immediately
-                    continue
-                pending_crops.append(crop)
-                pending_tids.append(tid)
-
-            if pending_crops:
-                preds = jersey_reader.predict_batch(pending_crops)
-                # Uniqueness filter: duplicate predictions in one batch = VLM confused
-                pred_counts = Counter(p for p in preds if p is not None)
-                for tid, pred in zip(pending_tids, preds):
-                    _vlm_last_frame[tid] = frame_num
-                    # Treat duplicate predictions as unreadable for this frame
-                    clean_pred = pred if (pred is not None and pred_counts[pred] == 1) else None
-                    _vlm_record(tid, clean_pred)
-        else:
-            # OCR path: batch inference (fast YOLO classifier)
-            ocr_preds = jersey_reader.predict(gated_crops)
-            ocr_number_map: dict[int, tuple[str, float]] = {}
-            for j, pred in enumerate(ocr_preds):
-                if pred is not None:
-                    ocr_number_map[gated_box_idx[j]] = pred
+        ocr_results = jersey_reader.predict(gated_crops)
+        ocr_number_map: dict[int, tuple[str, float]] = {}
+        for j, (top1, top5, blur_var) in enumerate(ocr_results):
+            if top1 is not None:
+                ocr_number_map[gated_box_idx[j]] = top1
 
         field_state = []
         for i, (box, team) in enumerate(zip(boxes, team_labels)):
             track_id = int(box[4])
-            if use_vlm:
-                number = _vlm_display(track_id)
-            else:
-                raw = ocr_number_map.get(i)
-                number = _stable_number(track_id, *raw) if raw is not None else "?"
+            raw = ocr_number_map.get(i)
+            number = _stable_number(track_id, *raw) if raw is not None else "?"
             field_state.append({
                 "track_id": track_id,
                 "bbox":     [int(v) for v in box[:4]],
@@ -558,30 +398,10 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
             p["field_x"] = fp["field_x"] if fp else None
             p["field_y"] = fp["field_y"] if fp else None
 
-        # ── Top-down canvas ───────────────────────────────────────────────────
-        canvas = build_field_canvas(scale=CANVAS_SCALE)
-        # Color dots by team
-        team_color_map = {
-            "offense": (0, 200, 255),
-            "defense": (255, 100, 0),
-            "unknown": (128, 128, 128),
-        }
-        for p, fp in zip(field_state, field_points):
-            if not fp["in_bounds"]:
-                continue
-            cx = int(fp["field_x"] * CANVAS_SCALE)
-            cy = int(fp["field_y"] * CANVAS_SCALE)
-            color = team_color_map.get(p["team"], (128, 128, 128))
-            cv2.circle(canvas, (cx, cy), 7, color, -1)
-            cv2.circle(canvas, (cx, cy), 7, (255, 255, 255), 1)
-            cv2.putText(canvas, str(p["track_id"]), (cx + 8, cy + 4),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
-
-        # Resize canvas to match frame height and show side by side
-        target_h = frame.shape[0]
-        sf = target_h / canvas.shape[0]
-        canvas_resized = cv2.resize(canvas, (int(canvas.shape[1] * sf), target_h))
-        combined = np.hstack([frame, canvas_resized])
+        # ── OCR debug panel ───────────────────────────────────────────────────
+        debug_tids  = [int(boxes[i][4]) for i in gated_box_idx]
+        debug_panel = _build_ocr_panel(gated_crops, ocr_results, debug_tids, frame.shape[0])
+        combined    = np.hstack([frame, debug_panel])
 
         if ball_xy:
             bx, by = int(ball_xy[0]), int(ball_xy[1])
@@ -614,38 +434,32 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python pipeline.py <video> [--det PATH] [--ocr PATH] [--out FILE] [--conf N] [--vlm] [--vlm-every N] [--pose-every N]")
+        print("Usage: python pipeline.py <video> [--det PATH] [--ocr PATH] [--out FILE] [--conf N] [--pose-every N]")
         sys.exit(1)
 
-    video         = sys.argv[1]
-    det_model     = "weights/player-best.pt"
-    ocr_model     = "weights/jersey_ocr.pt"
-    ball_model    = "weights/ball-best.pt"
-    pose_model    = "weights/yolo11n-pose.pt"
-    out_path      = None
-    conf          = 0.4
-    ocr_warning   = False
-    use_vlm       = False
-    pose_every    = 3
-    vlm_every     = 12
-    vlm_model_id  = "Qwen/Qwen2.5-VL-3B-Instruct"
+    video       = sys.argv[1]
+    det_model   = "weights/player-best.pt"
+    ocr_model   = "weights/best.pt"
+    ball_model  = "weights/ball-best.pt"
+    pose_model  = "weights/yolo11n-pose.pt"
+    out_path    = None
+    conf        = 0.4
+    ocr_warning = False
+    pose_every  = 3
 
     i = 2
     while i < len(sys.argv):
         a = sys.argv[i]
-        if   a == "--det"        and i + 1 < len(sys.argv): det_model    = sys.argv[i+1]; i += 2
-        elif a == "--ocr"        and i + 1 < len(sys.argv): ocr_model    = sys.argv[i+1]; i += 2
-        elif a == "--ball"       and i + 1 < len(sys.argv): ball_model   = sys.argv[i+1]; i += 2
-        elif a == "--no-ball":                               ball_model   = None;          i += 1
-        elif a == "--pose"       and i + 1 < len(sys.argv): pose_model   = sys.argv[i+1]; i += 2
-        elif a == "--no-pose":                               pose_model   = None;          i += 1
-        elif a == "--out"        and i + 1 < len(sys.argv): out_path     = sys.argv[i+1]; i += 2
-        elif a == "--conf"       and i + 1 < len(sys.argv): conf         = float(sys.argv[i+1]); i += 2
-        elif a == "--ocr-warning":                           ocr_warning  = True;          i += 1
-        elif a == "--vlm":                                   use_vlm      = True;          i += 1
-        elif a == "--pose-every" and i + 1 < len(sys.argv): pose_every   = int(sys.argv[i+1]); i += 2
-        elif a == "--vlm-every"  and i + 1 < len(sys.argv): vlm_every    = int(sys.argv[i+1]); i += 2
-        elif a == "--vlm-model"  and i + 1 < len(sys.argv): vlm_model_id = sys.argv[i+1]; i += 2
+        if   a == "--det"        and i + 1 < len(sys.argv): det_model   = sys.argv[i+1]; i += 2
+        elif a == "--ocr"        and i + 1 < len(sys.argv): ocr_model   = sys.argv[i+1]; i += 2
+        elif a == "--ball"       and i + 1 < len(sys.argv): ball_model  = sys.argv[i+1]; i += 2
+        elif a == "--no-ball":                               ball_model  = None;          i += 1
+        elif a == "--pose"       and i + 1 < len(sys.argv): pose_model  = sys.argv[i+1]; i += 2
+        elif a == "--no-pose":                               pose_model  = None;          i += 1
+        elif a == "--out"        and i + 1 < len(sys.argv): out_path    = sys.argv[i+1]; i += 2
+        elif a == "--conf"       and i + 1 < len(sys.argv): conf        = float(sys.argv[i+1]); i += 2
+        elif a == "--ocr-warning":                           ocr_warning = True;          i += 1
+        elif a == "--pose-every" and i + 1 < len(sys.argv): pose_every  = int(sys.argv[i+1]); i += 2
         else: i += 1
 
     run_pipeline(video, det_model, ocr_model,
@@ -654,7 +468,4 @@ if __name__ == "__main__":
                  output_path=out_path,
                  conf=conf,
                  ocr_warning=ocr_warning,
-                 use_vlm=use_vlm,
-                 pose_every=pose_every,
-                 vlm_every=vlm_every,
-                 vlm_model_id=vlm_model_id)
+                 pose_every=pose_every)

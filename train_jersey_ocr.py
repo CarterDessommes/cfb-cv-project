@@ -1,11 +1,8 @@
 """
 Train YOLOv11 jersey number classifier on your custom dataset.
-
-Optimized for small datasets (~460 images) with varying rectangular dimensions.
+Optimized for small datasets (~1000 images) with varying rectangular dimensions.
 """
-
 #!pip install ultralytics
-
 import shutil
 import pandas as pd
 from pathlib import Path
@@ -15,47 +12,61 @@ from ultralytics import YOLO
 # Paths
 DATASET_DIR = Path("/kaggle/input/datasets/andrewleick/labels1")
 OUTPUT_DIR  = Path("/kaggle/working/jersey_cls")
-TSV_PATH    = DATASET_DIR / "labels_bijon_pass1_backup.tsv"
+CSV_PATH    = DATASET_DIR / "labels.csv"
 
 # --- OPTIMIZED HYPERPARAMETERS FOR YOUR DATASET ---
-EPOCHS     = 100  # Increased to give the model more time to converge
-BATCH_SIZE = 64   # Lowered so the model updates its weights ~11-12 times per epoch
-IMG_SIZE   = 128  # Increased to prevent digit distortion/pixelation
-
+EPOCHS     = 100
+BATCH_SIZE = 32
+IMG_SIZE   = 128
+MIN_CLASS_SAMPLES = 4
 
 def build_classification_dataset():
-    df = pd.read_csv(TSV_PATH, sep='\t')
+    # Wipe any previous run's data
+    if OUTPUT_DIR.exists():
+        shutil.rmtree(OUTPUT_DIR)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    df = pd.read_csv(CSV_PATH)
     images_dir = DATASET_DIR / "crops" / "crops"
-    
-    tsv_filenames = set(df["filename"])
+
+    csv_filenames = set(df["filename"])
     disk_filenames = set(f.name for f in images_dir.iterdir() if f.is_file()) if images_dir.exists() else set()
 
-    # Crops on disk with no TSV entry are unlabeled (e.g. in-progress run) — skip silently.
-    not_in_tsv = disk_filenames - tsv_filenames
-    if not_in_tsv:
-        print(f"Skipping {len(not_in_tsv)} crops with no TSV label.")
+    not_in_csv = disk_filenames - csv_filenames
+    if not_in_csv:
+        print(f"Skipping {len(not_in_csv)} crops with no CSV label.")
         df = df[df["filename"].isin(disk_filenames)]
 
-    not_on_disk = tsv_filenames - disk_filenames
+    not_on_disk = csv_filenames - disk_filenames
     if len(not_on_disk) > 20:
-        raise ValueError(f"CRITICAL: Found {len(not_on_disk)} rows in TSV missing from disk.")
+        raise ValueError(f"CRITICAL: Found {len(not_on_disk)} rows in CSV missing from disk.")
     elif not_on_disk:
         df = df[df["filename"].isin(disk_filenames)]
 
-    # Safe Stratification handling
+    # Drop rare classes that can't be meaningfully learned or split
     label_counts = df["label"].value_counts()
-    singletons = df[df["label"].isin(label_counts[label_counts == 1].index)]
-    stratified_df = df[df["label"].isin(label_counts[label_counts > 1].index)]
+    rare = label_counts[label_counts < MIN_CLASS_SAMPLES].index
+    if len(rare) > 0:
+        print(f"Dropping {len(rare)} classes with fewer than {MIN_CLASS_SAMPLES} images: {sorted(rare.tolist())}")
+        df = df[~df["label"].isin(rare)]
 
-    if not stratified_df.empty:
-        train_df, val_df = train_test_split(
-            stratified_df, test_size=0.2, random_state=42, stratify=stratified_df["label"]
-        )
-        train_df = pd.concat([train_df, singletons], ignore_index=True)
-    else:
-        train_df, val_df = train_test_split(df, test_size=0.2, random_state=42)
+    print(f"Dataset after filtering: {len(df)} images, {df['label'].nunique()} classes")
 
-    print(f"Train: {len(train_df)}  Val: {len(val_df)}  Classes: {df['label'].nunique()}")
+    # Stratified split
+    train_df, val_df = train_test_split(
+        df, test_size=0.2, random_state=42, stratify=df["label"]
+    )
+
+    # Auto-heal: drop any classes still missing from val
+    train_classes = set(train_df["label"].unique())
+    val_classes   = set(val_df["label"].unique())
+    if train_classes != val_classes:
+        missing = train_classes - val_classes
+        print(f"Warning: dropping {len(missing)} classes still missing from val: {sorted(missing)}")
+        train_df = train_df[~train_df["label"].isin(missing)]
+        val_df   = val_df[~val_df["label"].isin(missing)]
+
+    print(f"Train: {len(train_df)}  Val: {len(val_df)}  Classes: {train_df['label'].nunique()}")
 
     for split, split_df in [("train", train_df), ("val", val_df)]:
         for _, row in split_df.iterrows():
@@ -66,7 +77,6 @@ def build_classification_dataset():
 
     return str(OUTPUT_DIR)
 
-
 def train(data_dir: str):
     model = YOLO("yolo11n-cls.pt")
     model.train(
@@ -76,12 +86,10 @@ def train(data_dir: str):
         imgsz=IMG_SIZE,
         project="/kaggle/working/runs",
         name="jersey_ocr",
-        # Custom additions for small datasets:
-        dropout=0.1,    # Adds a small dropout layer to prevent overfitting on 460 images
-        patience=15,    # Early stopping: if validation loss doesn't improve for 15 epochs, wrap up early
+        dropout=0.1,
+        patience=15,
     )
     print("\nTraining complete! Best weights saved to: /kaggle/working/runs/jersey_ocr/weights/best.pt")
-
 
 if __name__ == "__main__":
     data_dir = build_classification_dataset()
