@@ -126,6 +126,62 @@ class JerseyOCR:
         results = self.model(crops, **self.predict_kwargs)
         return [r.names[r.probs.top1] for r in results]
 
+    def predict_debug(self, crops: list) -> list[tuple]:
+        """Richer per-crop output for the --debug panel only: (top1, top5, blur_var).
+        Separate from predict() so the main OCR flow is unaffected."""
+        if not crops:
+            return []
+        results = self.model(crops, **self.predict_kwargs)
+        out = []
+        for crop, r in zip(crops, results):
+            blur_var  = float(cv2.Laplacian(crop, cv2.CV_64F).var())
+            top5_idx  = r.probs.top5
+            top5_conf = r.probs.top5conf.cpu().numpy()
+            top5      = [(r.names[i], float(c)) for i, c in zip(top5_idx, top5_conf)]
+            top1      = top5[0][0] if top5 else None
+            out.append((top1, top5, blur_var))
+        return out
+
+
+_DEBUG_PANEL_H = 200   # height (px) of the bottom OCR debug strip
+_DEBUG_ENTRY_W = 150   # width (px) per crop entry within the strip
+
+
+def _build_ocr_panel(crops, ocr_results, track_ids, panel_w: int) -> np.ndarray:
+    """Bottom debug strip: each crop thumbnail + its top-5 predictions, laid out
+    left-to-right. Sized to span the full width of the main display so it can be
+    vstacked below it."""
+    panel = np.full((_DEBUG_PANEL_H, panel_w, 3), 28, dtype=np.uint8)
+    font  = cv2.FONT_HERSHEY_SIMPLEX
+    x = 6
+    for crop, (top1, top5, blur_var), tid in zip(crops, ocr_results, track_ids):
+        if x + _DEBUG_ENTRY_W > panel_w:
+            break
+        cv2.putText(panel, f"#{tid} blur={blur_var:.0f}", (x, 14), font, 0.38, (160, 160, 160), 1)
+
+        thumb_w = _DEBUG_ENTRY_W - 12
+        h, w    = crop.shape[:2]
+        scale   = thumb_w / max(w, 1)
+        thumb_h = min(max(1, int(h * scale)), 90)
+        thumb   = cv2.resize(crop, (thumb_w, thumb_h), interpolation=cv2.INTER_AREA)
+        panel[20:20 + thumb_h, x:x + thumb_w] = thumb
+
+        ty = 20 + thumb_h + 14
+        if not top5:
+            cv2.putText(panel, "BLURRY", (x, ty), font, 0.4, (80, 80, 200), 1)
+        else:
+            for rank, (label, conf) in enumerate(top5):
+                color = (0, 210, 100) if rank == 0 else (130, 130, 130)
+                cv2.putText(panel, f"{rank+1}. {label}: {conf:.2f}", (x, ty), font, 0.36, color, 1)
+                ty += 14
+                if ty > _DEBUG_PANEL_H - 4:
+                    break
+        x += _DEBUG_ENTRY_W
+
+    if not crops:
+        cv2.putText(panel, "No crops this frame", (6, 20), font, 0.4, (100, 100, 100), 1)
+    return panel
+
 
 def _p95(values: list[float]) -> float:
     if not values:
@@ -298,7 +354,7 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
 def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=None,
                  output_path=None, conf=0.4, ocr_warning=False,
                  ocr_every=5, ball_every=2, ball_roi=320, ball_full_every=30,
-                 det_imgsz=480, det_every=1):
+                 det_imgsz=480, det_every=1, debug=False):
     from ultralytics import YOLO
 
     _NUMBER_HISTORY.clear()
@@ -495,6 +551,14 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
             cv2.putText(combined, "WARNING: jersey # accuracy is low (experimental)",
                         (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
+        # ── OCR debug strip (--debug): stacked below, never touches main display ─
+        if debug:
+            dbg_crops, dbg_idx = _crops(frame, boxes)
+            dbg_results = ocr.predict_debug(dbg_crops)
+            dbg_tids    = [int(boxes[i][4]) for i in dbg_idx]
+            panel = _build_ocr_panel(dbg_crops, dbg_results, dbg_tids, combined.shape[1])
+            combined = np.vstack([combined, panel])
+
         if output_path and writer is None:
             h_out, w_out = combined.shape[:2]
             writer = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w_out, h_out))
@@ -529,7 +593,7 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python pipeline.py <video> [--det PATH] [--ocr PATH] [--out FILE] "
               "[--conf N] [--imgsz N] [--det-every N] [--ocr-every N] [--ball-every N] "
-              "[--ball-roi N] [--ball-full-every N] [--ball-11m] [--no-ball]")
+              "[--ball-roi N] [--ball-full-every N] [--ball-11m] [--no-ball] [--debug]")
         sys.exit(1)
 
     video       = sys.argv[1]
@@ -545,6 +609,7 @@ if __name__ == "__main__":
     ball_every  = 2
     ball_roi    = 320
     ball_full_every = 30
+    debug       = False
 
     i = 2
     while i < len(sys.argv):
@@ -576,10 +641,12 @@ if __name__ == "__main__":
             ball_full_every = int(sys.argv[i + 1]); i += 2
         elif sys.argv[i] == "--ocr-warning":
             ocr_warning = True; i += 1
+        elif sys.argv[i] == "--debug":
+            debug = True; i += 1
         else:
             i += 1
 
     run_pipeline(video, det_model, ocr_model, ball_model, out_path, conf, ocr_warning,
                  ocr_every=ocr_every, ball_every=ball_every,
                  ball_roi=ball_roi, ball_full_every=ball_full_every,
-                 det_imgsz=det_imgsz, det_every=det_every)
+                 det_imgsz=det_imgsz, det_every=det_every, debug=debug)

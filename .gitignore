@@ -11,6 +11,7 @@ benchmarks/results/
 *.tsv
 *.log
 *.json
+*.zip
 
 # Benchmark labeling source (regenerable; not needed to run benchmarks)
 benchmarks/fixtures/roboflow/
