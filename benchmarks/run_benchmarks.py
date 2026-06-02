@@ -378,7 +378,9 @@ def print_summary(run: dict[str, Any]) -> None:
     accuracy = run["accuracy"]
     config = run.get("config")
     if config:
-        print(f"Config: imgsz={config['imgsz']} det_every={config['det_every']} "
+        imgsz2 = config.get("imgsz2", 0)
+        imgsz2_str = f"+{imgsz2}(iou{config.get('nms_iou', 0.6)})" if imgsz2 else ""
+        print(f"Config: imgsz={config['imgsz']}{imgsz2_str} det_every={config['det_every']} "
               f"ocr_every={config['ocr_every']} ball_every={config['ball_every']}")
     print(f"FPS: {timings['fps']:.2f}")
     print(f"Mean frame: {timings['mean_frame_seconds']:.4f}s")
@@ -420,6 +422,8 @@ def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
         ball_every=args.ball_every,
         det_imgsz=args.imgsz,
         det_every=args.det_every,
+        det_imgsz2=args.imgsz2,
+        nms_iou=args.nms_iou,
     )
     return {
         "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -429,6 +433,8 @@ def run_benchmark(args: argparse.Namespace) -> dict[str, Any]:
         "config": {
             "conf": args.conf,
             "imgsz": args.imgsz,
+            "imgsz2": args.imgsz2,
+            "nms_iou": args.nms_iou,
             "det_every": args.det_every,
             "ocr_every": args.ocr_every,
             "ball_every": args.ball_every,
@@ -465,6 +471,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--homography", type=Path, default=ROOT / "homographies.npz")
     parser.add_argument("--conf", type=float, default=0.4)
     parser.add_argument("--imgsz", type=int, default=480)
+    parser.add_argument("--imgsz2", type=int, default=960,
+                        help="Second detection resolution for dual-res merge (0=off).")
+    parser.add_argument("--nms-iou", type=float, default=0.6,
+                        help="IoU threshold for the dual-resolution NMS merge.")
     parser.add_argument("--det-every", type=int, default=1)
     parser.add_argument("--ocr-every", type=int, default=5)
     parser.add_argument("--ball-every", type=int, default=1)

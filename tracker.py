@@ -11,6 +11,7 @@ import os
 
 from ball_tracker import BallTracker
 from yolo_utils import boxes_to_cpu_arrays
+from multiscale import merge_detections, MultiScaleTracker
 
 # Constants
 DEFAULT_BALL_MODEL = "weights/ball-best.pt"
@@ -27,10 +28,15 @@ def load_model(model_path):
     return YOLO(model_path)
 
 
-def get_tracker_config_path(ball=False):
-    """Get path to botsort.yaml config file."""
+def get_tracker_config_path(ball=False, multiscale=False):
+    """Get path to a BoT-SORT config file."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    config_name = "botsort_ball.yaml" if ball else "botsort.yaml"
+    if multiscale:
+        config_name = "botsort_multiscale.yaml"
+    elif ball:
+        config_name = "botsort_ball.yaml"
+    else:
+        config_name = "botsort.yaml"
     return os.path.join(script_dir, config_name)
 
 
@@ -42,13 +48,20 @@ def _due(frame_num: int, every: int) -> bool:
 def track_video(video_path, model_path, output_path=None, confidence=0.4, show=True,
                 ball_model_path=None, ball_confidence=0.3, track_ball=True,
                 ball_every=DEFAULT_BALL_EVERY, ball_roi=DEFAULT_BALL_ROI,
-                ball_full_every=DEFAULT_BALL_FULL_EVERY):
+                ball_full_every=DEFAULT_BALL_FULL_EVERY,
+                imgsz=480, imgsz2=960, nms_iou=0.6):
     """Run BoT-SORT tracking on video with Re-ID support and optional ball tracking."""
 
     # Load player/referee model
     model = load_model(model_path)
     tracker_config = get_tracker_config_path()
     print(f"Using player tracker config: {tracker_config}")
+
+    # Opt-in dual-resolution detection: merge a second higher-res pass via NMS,
+    # then drive a manually-managed BoT-SORT (Re-ID off) for stable track IDs.
+    mst = MultiScaleTracker(get_tracker_config_path(multiscale=True)) if imgsz2 else None
+    if mst is not None:
+        print(f"Dual-resolution detection: imgsz={imgsz}+{imgsz2}, nms_iou={nms_iou}")
 
     # Load ROI-based ball tracker if enabled
     ball_tracker = None
@@ -104,21 +117,32 @@ def track_video(video_path, model_path, output_path=None, confidence=0.4, show=T
         # Only run detection on every other frame
         if frame_num % 2 == 1:
             detection_num += 1
-            # Run detection + tracking with Re-ID using Ultralytics built-in BoT-SORT
-            # persist=True maintains track state across frames
-            results = model.track(
-                frame,
-                tracker=tracker_config,
-                persist=True,
-                conf=confidence,
-                verbose=False,
-                device='mps',    # Use Apple Silicon GPU
-                half=True,       # FP16 inference (2x faster)
-            )
+            if mst is not None:
+                # Dual-resolution: merge two passes via NMS, then track manually.
+                merged = merge_detections(
+                    model, frame, confidence, 'mps', [imgsz, imgsz2], nms_iou
+                )
+                trk = mst.update(merged, frame)
+                boxes = trk[:, :4] if len(trk) else None
+                track_ids = trk[:, 4].astype(int) if len(trk) else None
+                classes = trk[:, 6].astype(int) if len(trk) else None
+                confs = trk[:, 5] if len(trk) else None
+            else:
+                # Run detection + tracking with Re-ID using Ultralytics built-in BoT-SORT
+                # persist=True maintains track state across frames
+                results = model.track(
+                    frame,
+                    tracker=tracker_config,
+                    persist=True,
+                    conf=confidence,
+                    verbose=False,
+                    device='mps',    # Use Apple Silicon GPU
+                    half=True,       # FP16 inference (2x faster)
+                )
+                boxes, track_ids, classes, confs = boxes_to_cpu_arrays(results[0].boxes)
 
-            # Extract tracks from results
+            # Extract tracks
             tracks = []
-            boxes, track_ids, classes, confs = boxes_to_cpu_arrays(results[0].boxes)
             if boxes is not None and track_ids is not None and classes is not None and confs is not None:
                 # Separate by class and keep top N by confidence
                 # Class 0 = player (max 22), Class 1 = referee (max 7)
@@ -211,6 +235,9 @@ if __name__ == "__main__":
         print("  --model PATH       Path to player YOLO weights (default: weights/player-best.pt)")
         print("  --out FILE         Save output video")
         print("  --conf N           Player detection confidence 0.0-1.0 (default: 0.4)")
+        print("  --imgsz N          Player detection resolution (default: 480)")
+        print("  --imgsz2 N         Second resolution for dual-res NMS merge (default: 960, 0=off)")
+        print("  --nms-iou F        IoU threshold for the dual-res merge (default: 0.6)")
         print()
         print("Ball tracking options:")
         print("  --ball-model PATH  Path to ball YOLO weights (default: weights/ball-best.pt)")
@@ -236,6 +263,9 @@ if __name__ == "__main__":
     ball_roi = DEFAULT_BALL_ROI
     ball_full_every = DEFAULT_BALL_FULL_EVERY
     track_ball = True
+    imgsz = 480
+    imgsz2 = 960
+    nms_iou = 0.6
 
     i = 2
     while i < len(sys.argv):
@@ -263,6 +293,15 @@ if __name__ == "__main__":
         elif sys.argv[i] == "--ball-full-every" and i + 1 < len(sys.argv):
             ball_full_every = int(sys.argv[i + 1])
             i += 2
+        elif sys.argv[i] == "--imgsz" and i + 1 < len(sys.argv):
+            imgsz = int(sys.argv[i + 1])
+            i += 2
+        elif sys.argv[i] == "--imgsz2" and i + 1 < len(sys.argv):
+            imgsz2 = int(sys.argv[i + 1])
+            i += 2
+        elif sys.argv[i] == "--nms-iou" and i + 1 < len(sys.argv):
+            nms_iou = float(sys.argv[i + 1])
+            i += 2
         elif sys.argv[i] == "--no-ball":
             track_ball = False
             i += 1
@@ -272,4 +311,5 @@ if __name__ == "__main__":
     track_video(video_path, model_path, output_path, confidence,
                 ball_model_path=ball_model_path, ball_confidence=ball_confidence,
                 track_ball=track_ball, ball_every=ball_every, ball_roi=ball_roi,
-                ball_full_every=ball_full_every)
+                ball_full_every=ball_full_every,
+                imgsz=imgsz, imgsz2=imgsz2, nms_iou=nms_iou)

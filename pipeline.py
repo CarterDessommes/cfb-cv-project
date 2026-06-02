@@ -15,6 +15,14 @@ Defaults:
     --imgsz      480 (YOLO inference resolution for player detection; must be a
                       multiple of 32. Smaller = faster but lower accuracy — one of
                       the two biggest compute levers for player detection)
+    --imgsz2     960 (dual-resolution detection: the detector runs a second pass
+                      at this resolution and the two detection sets are merged
+                      with class-aware IoU NMS before tracking, to catch players
+                      bunched at the line of scrimmage. Set 0 to disable (single
+                      pass, ~20-28% faster but lower recall). Doubles detector
+                      cost on detection frames.)
+    --nms-iou    0.6 (IoU threshold for the dual-resolution merge; higher keeps
+                      adjacent (overlapping) players separate)
     --det-every  1   (run player detection+tracking every Nth frame; set >1 to
                       reuse prior tracks between detections. The detector net is
                       the dominant per-frame cost, so this is an opt-in speed knob.)
@@ -43,6 +51,7 @@ from field_mapper import (
 from yolo_utils import boxes_to_cpu_arrays
 from tracker import get_tracker_config_path
 from ball_tracker import BallTracker
+from multiscale import merge_detections, MultiScaleTracker
 
 _NUMBER_HISTORY: dict[int, list[str]] = {}
 _VOTE_WINDOW = 15
@@ -139,7 +148,8 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
                            ocr_model_path="weights/jersey_ocr.pt",
                            ball_model_path="weights/ball-best.pt",
                            homography_path="homographies.npz", conf=0.4,
-                           ocr_every=5, ball_every=1, det_imgsz=480, det_every=1):
+                           ocr_every=5, ball_every=1, det_imgsz=480, det_every=1,
+                           det_imgsz2=960, nms_iou=0.6):
     """Run the field-state pipeline headlessly and return predictions + timings.
 
     `frame_numbers` are zero-based video frame indices, matching OpenCV and the
@@ -159,6 +169,9 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
     ocr           = JerseyOCR(ocr_model_path)
     ball_detector = BallTracker(ball_model_path) if ball_model_path else None
     homography    = load_homographies(homography_path)
+    # Opt-in dual-resolution detection: merge a second higher-res pass via NMS,
+    # then drive a manually-managed BoT-SORT (Re-ID off) for stable track IDs.
+    mst = MultiScaleTracker(get_tracker_config_path(multiscale=True)) if det_imgsz2 else None
     model_load_seconds = time.perf_counter() - load_start
 
     cap = cv2.VideoCapture(video_path)
@@ -190,17 +203,25 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
         # Player detection+tracking is the dominant per-frame cost, so run it on a
         # stride and reuse the prior tracks between (persist=True keeps the IDs).
         if _due(frame_num, det_every):
-            results = detector.track(
-                frame, persist=True, conf=conf, verbose=False,
-                device=device, half=True, imgsz=det_imgsz,
-            )
+            if mst is not None:
+                merged = merge_detections(
+                    detector, frame, conf, device, [det_imgsz, det_imgsz2], nms_iou
+                )
+                tracks = mst.update(merged, frame)
+                boxes = [[t[0], t[1], t[2], t[3], int(t[4]), int(t[6])]
+                         for t in tracks if int(t[6]) == 0]
+            else:
+                results = detector.track(
+                    frame, persist=True, conf=conf, verbose=False,
+                    device=device, half=True, imgsz=det_imgsz,
+                )
 
-            boxes = []
-            xyxy, ids, clss, _ = boxes_to_cpu_arrays(results[0].boxes)
-            if xyxy is not None and ids is not None and clss is not None:
-                for box, tid, cls in zip(xyxy, ids, clss):
-                    if cls == 0:
-                        boxes.append([*box, tid, cls])
+                boxes = []
+                xyxy, ids, clss, _ = boxes_to_cpu_arrays(results[0].boxes)
+                if xyxy is not None and ids is not None and clss is not None:
+                    for box, tid, cls in zip(xyxy, ids, clss):
+                        if cls == 0:
+                            boxes.append([*box, tid, cls])
 
         if boxes and not fitted:
             fitted = classifier.fit(frame, boxes)
@@ -298,7 +319,7 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
 def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=None,
                  output_path=None, conf=0.4, ocr_warning=False,
                  ocr_every=5, ball_every=2, ball_roi=320, ball_full_every=30,
-                 det_imgsz=480, det_every=1):
+                 det_imgsz=480, det_every=1, det_imgsz2=960, nms_iou=0.6):
     from ultralytics import YOLO
 
     _NUMBER_HISTORY.clear()
@@ -306,6 +327,9 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
     _TRAIL_MAX = 45
     detector       = YOLO(det_model_path)
     tracker_config = get_tracker_config_path()
+    # Opt-in dual-resolution detection: merge a second higher-res pass via NMS,
+    # then drive a manually-managed BoT-SORT (Re-ID off) for stable track IDs.
+    mst = MultiScaleTracker(get_tracker_config_path(multiscale=True)) if det_imgsz2 else None
     device        = _best_device()
     classifier    = TeamClassifier()
     ocr           = JerseyOCR(ocr_model_path)
@@ -323,6 +347,8 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
     if width > 0 and height > 0:
         dummy_frame = np.zeros((height, width, 3), dtype=np.uint8)
         detector(dummy_frame, device=device, half=True, verbose=False, imgsz=det_imgsz)
+        if det_imgsz2:
+            detector(dummy_frame, device=device, half=True, verbose=False, imgsz=det_imgsz2)
         if ball_tracker:
             ball_tracker.warmup(dummy_frame.shape)
     ocr.warmup()
@@ -354,17 +380,25 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
         # frame and coast on the previous tracks. persist=True keeps BoT-SORT IDs
         # stable across the skipped frames (see tracker.py for the same pattern).
         if _due(frame_num, det_every):
-            results = detector.track(
-                frame, tracker=tracker_config, persist=True, conf=conf, verbose=False,
-                device=device, half=True, imgsz=det_imgsz,
-            )
+            if mst is not None:
+                merged = merge_detections(
+                    detector, frame, conf, device, [det_imgsz, det_imgsz2], nms_iou
+                )
+                tracks = mst.update(merged, frame)
+                boxes = [[t[0], t[1], t[2], t[3], int(t[4]), int(t[6])]
+                         for t in tracks if int(t[6]) == 0]  # players only
+            else:
+                results = detector.track(
+                    frame, tracker=tracker_config, persist=True, conf=conf, verbose=False,
+                    device=device, half=True, imgsz=det_imgsz,
+                )
 
-            boxes = []
-            xyxy, ids, clss, _ = boxes_to_cpu_arrays(results[0].boxes)
-            if xyxy is not None and ids is not None and clss is not None:
-                for box, tid, cls in zip(xyxy, ids, clss):
-                    if cls == 0:  # players only
-                        boxes.append([*box, tid, cls])
+                boxes = []
+                xyxy, ids, clss, _ = boxes_to_cpu_arrays(results[0].boxes)
+                if xyxy is not None and ids is not None and clss is not None:
+                    for box, tid, cls in zip(xyxy, ids, clss):
+                        if cls == 0:  # players only
+                            boxes.append([*box, tid, cls])
 
         if boxes and not fitted:
             fitted = classifier.fit(frame, boxes)
@@ -528,7 +562,8 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python pipeline.py <video> [--det PATH] [--ocr PATH] [--out FILE] "
-              "[--conf N] [--imgsz N] [--det-every N] [--ocr-every N] [--ball-every N] "
+              "[--conf N] [--imgsz N] [--imgsz2 N] [--nms-iou F] [--det-every N] "
+              "[--ocr-every N] [--ball-every N] "
               "[--ball-roi N] [--ball-full-every N] [--ball-11m] [--no-ball]")
         sys.exit(1)
 
@@ -539,6 +574,8 @@ if __name__ == "__main__":
     out_path    = None
     conf        = 0.4
     det_imgsz   = 480
+    det_imgsz2  = 960
+    nms_iou     = 0.6
     det_every   = 1
     ocr_warning = False
     ocr_every   = 5
@@ -564,6 +601,10 @@ if __name__ == "__main__":
             conf = float(sys.argv[i + 1]); i += 2
         elif sys.argv[i] == "--imgsz" and i + 1 < len(sys.argv):
             det_imgsz = int(sys.argv[i + 1]); i += 2
+        elif sys.argv[i] == "--imgsz2" and i + 1 < len(sys.argv):
+            det_imgsz2 = int(sys.argv[i + 1]); i += 2
+        elif sys.argv[i] == "--nms-iou" and i + 1 < len(sys.argv):
+            nms_iou = float(sys.argv[i + 1]); i += 2
         elif sys.argv[i] == "--det-every" and i + 1 < len(sys.argv):
             det_every = int(sys.argv[i + 1]); i += 2
         elif sys.argv[i] == "--ocr-every" and i + 1 < len(sys.argv):
@@ -582,4 +623,5 @@ if __name__ == "__main__":
     run_pipeline(video, det_model, ocr_model, ball_model, out_path, conf, ocr_warning,
                  ocr_every=ocr_every, ball_every=ball_every,
                  ball_roi=ball_roi, ball_full_every=ball_full_every,
-                 det_imgsz=det_imgsz, det_every=det_every)
+                 det_imgsz=det_imgsz, det_every=det_every,
+                 det_imgsz2=det_imgsz2, nms_iou=nms_iou)
