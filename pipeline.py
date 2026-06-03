@@ -38,7 +38,6 @@ import sys
 import time
 import cv2
 import numpy as np
-from collections import Counter
 
 from team_classifier import TeamClassifier, _best_device
 from field_mapper import (
@@ -53,16 +52,26 @@ from tracker import get_tracker_config_path
 from ball_tracker import BallTracker
 from multiscale import merge_detections, MultiScaleTracker
 
-_NUMBER_HISTORY: dict[int, list[str]] = {}
-_VOTE_WINDOW = 15
+_NUMBER_HISTORY: dict[int, list[tuple[str, float]]] = {}   # track_id -> recent (pred, conf) reads
+_NUMBER_LOCKED:  dict[int, str] = {}                        # track_id -> permanently decided number
+_VOTE_WINDOW = 75  # last 75 accepted OCR reads (with --ocr-every 5 that spans ~12.5 s @ 30 fps)
+_LOCK_VOTES  = 8   # confident reads agreeing before a tracklet's number is permanently locked
 
 
-def _stable_number(track_id: int, prediction: str) -> str:
+def _stable_number(track_id: int, pred: str, conf: float) -> str:
+    if track_id in _NUMBER_LOCKED:
+        return _NUMBER_LOCKED[track_id]
     history = _NUMBER_HISTORY.setdefault(track_id, [])
-    history.append(prediction)
+    history.append((pred, conf))
     if len(history) > _VOTE_WINDOW:
         history.pop(0)
-    return Counter(history).most_common(1)[0][0]
+    weights: dict[str, float] = {}
+    for p, c in history:
+        weights[p] = weights.get(p, 0.0) + c
+    best = max(weights, key=weights.__getitem__)
+    if sum(1 for p, _ in history if p == best) >= _LOCK_VOTES:
+        _NUMBER_LOCKED[track_id] = best
+    return best
 
 
 def _due(frame_num: int, every: int) -> bool:
@@ -77,22 +86,30 @@ COLORS = {
 }
 
 _MIN_CROP_PX = 10
+_OCR_CONF_THRESHOLD = 0.35  # min classifier confidence to accept a read
+_BLUR_THRESHOLD     = 20    # min Laplacian variance; below = too blurry to read
+_CROP_BOTTOM        = 0.95  # keep from box top down to this fraction of player height
+_CROP_WIDTH_PAD     = 0.15  # widen past the bbox left/right by this fraction
+
+
+def _number_crop(frame, box):
+    """Generous crop covering (nearly) the whole player so the chest number is
+    never clipped by an off-center number or out-flung arms. It's a wide net."""
+    x1, y1, x2, y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
+    h, w = y2 - y1, x2 - x1
+    ty1 = max(0, y1)
+    ty2 = min(frame.shape[0], y1 + int(h * _CROP_BOTTOM))
+    sx1 = max(0, x1 - int(w * _CROP_WIDTH_PAD))
+    sx2 = min(frame.shape[1], x2 + int(w * _CROP_WIDTH_PAD))
+    return frame[ty1:ty2, sx1:sx2]
 
 
 def _crops(frame, boxes):
     crops, indices = [], []
     for i, box in enumerate(boxes):
-        x1, y1, x2, y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
-        # Slice the torso band (10%-50% of height) where the number lives
-        h = y2 - y1
-        ty1 = y1 + int(h * 0.10)
-        ty2 = y1 + int(h * 0.50)
-        crop = frame[ty1:ty2, x1:x2]
+        crop = _number_crop(frame, box)
         if crop.shape[0] >= _MIN_CROP_PX and crop.shape[1] >= _MIN_CROP_PX:
-            # Grayscale -> 3-channel so YOLO classifier still gets RGB input shape
-            gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-            crop = np.repeat(gray[:, :, None], 3, axis=2)
-            crops.append(crop)
+            crops.append(np.ascontiguousarray(crop))
             indices.append(i)
     return crops, indices
 
@@ -129,25 +146,27 @@ class JerseyOCR:
         dummy = np.zeros((32, 32, 3), dtype=np.uint8)
         self.model([dummy], **self.predict_kwargs)
 
-    def predict(self, crops: list) -> list[str]:
-        if not crops:
-            return []
-        results = self.model(crops, **self.predict_kwargs)
-        return [r.names[r.probs.top1] for r in results]
-
-    def predict_debug(self, crops: list) -> list[tuple]:
-        """Richer per-crop output for the --debug panel only: (top1, top5, blur_var).
-        Separate from predict() so the main OCR flow is unaffected."""
+    def predict(self, crops: list) -> list[tuple]:
+        """One (top1, top5, blur_var) tuple per crop:
+          top1     = (label, conf) if not blurry and conf >= _OCR_CONF_THRESHOLD, else None
+          top5     = [(label, conf), ...] (5 entries), or [] when the blur gate fails
+          blur_var = Laplacian variance of the crop
+        A crop failing the blur gate yields (None, [], blur_var); a crop whose best
+        guess is below the confidence gate yields (None, top5, blur_var)."""
         if not crops:
             return []
         results = self.model(crops, **self.predict_kwargs)
         out = []
         for crop, r in zip(crops, results):
-            blur_var  = float(cv2.Laplacian(crop, cv2.CV_64F).var())
+            blur_var = float(cv2.Laplacian(crop, cv2.CV_64F).var())
+            if blur_var < _BLUR_THRESHOLD:
+                out.append((None, [], blur_var))
+                continue
             top5_idx  = r.probs.top5
             top5_conf = r.probs.top5conf.cpu().numpy()
             top5      = [(r.names[i], float(c)) for i, c in zip(top5_idx, top5_conf)]
-            top1      = top5[0][0] if top5 else None
+            top1_label, top1_conf = top5[0]
+            top1 = (top1_label, top1_conf) if top1_conf >= _OCR_CONF_THRESHOLD else None
             out.append((top1, top5, blur_var))
         return out
 
@@ -180,7 +199,8 @@ def _build_ocr_panel(crops, ocr_results, track_ids, panel_w: int) -> np.ndarray:
             cv2.putText(panel, "BLURRY", (x, ty), font, 0.4, (80, 80, 200), 1)
         else:
             for rank, (label, conf) in enumerate(top5):
-                color = (0, 210, 100) if rank == 0 else (130, 130, 130)
+                is_winner = (rank == 0 and top1 is not None)
+                color = (0, 210, 100) if is_winner else (130, 130, 130)
                 cv2.putText(panel, f"{rank+1}. {label}: {conf:.2f}", (x, ty), font, 0.36, color, 1)
                 ty += 14
                 if ty > _DEBUG_PANEL_H - 4:
@@ -218,6 +238,7 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
         raise ValueError("frame_numbers must include at least one frame index")
 
     _NUMBER_HISTORY.clear()
+    _NUMBER_LOCKED.clear()
     load_start = time.perf_counter()
     detector      = YOLO(det_model_path)
     device        = _best_device()
@@ -308,10 +329,13 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
 
         if _due(frame_num, ocr_every):
             crops, valid_idx = _crops(frame, boxes)
-            ocr_preds = ocr.predict(crops)
-            for j, pred in enumerate(ocr_preds):
+            ocr_results = ocr.predict(crops)
+            for j, (top1, top5, blur_var) in enumerate(ocr_results):
+                if top1 is None:   # blurry or low-confidence read; don't dilute the vote
+                    continue
+                label, read_conf = top1   # NB: not `conf` — that's the detector threshold
                 tid = int(boxes[valid_idx[j]][4])
-                number_by_id[tid] = _stable_number(tid, pred)
+                number_by_id[tid] = _stable_number(tid, label, read_conf)
 
         field_state = []
         for box, team, cluster in zip(boxes, team_labels, team_clusters):
@@ -379,6 +403,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
     from ultralytics import YOLO
 
     _NUMBER_HISTORY.clear()
+    _NUMBER_LOCKED.clear()
     _TRAIL: dict[int, list] = {}   # track_id -> list of (cx, cy) canvas points
     _TRAIL_MAX = 45
     detector       = YOLO(det_model_path)
@@ -493,10 +518,13 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
         # ── Jersey OCR: throttled, cached by track_id with _stable_number ─────
         if _due(frame_num, ocr_every):
             crops, valid_idx = _crops(frame, boxes)
-            ocr_preds = ocr.predict(crops)
-            for j, pred in enumerate(ocr_preds):
+            ocr_results = ocr.predict(crops)
+            for j, (top1, top5, blur_var) in enumerate(ocr_results):
+                if top1 is None:   # blurry or low-confidence read; don't dilute the vote
+                    continue
+                label, read_conf = top1   # NB: not `conf` — that's the detector threshold
                 tid = int(boxes[valid_idx[j]][4])
-                number_by_id[tid] = _stable_number(tid, pred)
+                number_by_id[tid] = _stable_number(tid, label, read_conf)
 
         field_state = []
         detections_for_mapper = []
@@ -519,8 +547,9 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
 
             x1, y1, x2, y2 = bbox
             color = COLORS[team]
+            locked = "L" if track_id in _NUMBER_LOCKED else ""
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-            cv2.putText(frame, f"{team.upper()} #{number}",
+            cv2.putText(frame, f"{team.upper()} #{number}{locked}",
                         (x1, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
         # ── Field mapping: project players to top-down field coords ─────────
@@ -588,7 +617,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
         # ── OCR debug strip (--debug): stacked below, never touches main display ─
         if debug:
             dbg_crops, dbg_idx = _crops(frame, boxes)
-            dbg_results = ocr.predict_debug(dbg_crops)
+            dbg_results = ocr.predict(dbg_crops)
             dbg_tids    = [int(boxes[i][4]) for i in dbg_idx]
             panel = _build_ocr_panel(dbg_crops, dbg_results, dbg_tids, combined.shape[1])
             combined = np.vstack([combined, panel])
