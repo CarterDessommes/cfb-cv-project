@@ -29,11 +29,15 @@ class BallTracker:
         self.full_imgsz = 640
         self.full_every = full_every
         self.max_coast = max_coast
+        # When the ball is fully lost, only attempt the (expensive) full-frame
+        # re-acquire every Nth frame rather than every frame.
+        self.lost_acquire_every = 3
 
         self.last_xy: tuple[float, float] | None = None
         self.velocity = (0.0, 0.0)
         self.misses = 0
         self.frames_since_full = 0
+        self.lost_frames = 0
 
     def warmup(self, frame_shape):
         full_dummy = np.zeros(frame_shape, dtype=np.uint8)
@@ -79,6 +83,12 @@ class BallTracker:
                     or self.misses >= self.max_coast
                     or self.frames_since_full >= self.full_every)
         if use_full:
+            # Ball fully lost: throttle the full-frame re-acquire to every Nth frame.
+            if self.last_xy is None:
+                attempt = (self.lost_frames % self.lost_acquire_every == 0)
+                self.lost_frames += 1
+                if not attempt:
+                    return None
             det = self._detect_full(frame)
         else:
             px = self.last_xy[0] + self.velocity[0]
@@ -86,6 +96,7 @@ class BallTracker:
             det = self._detect_roi(frame, px, py)
 
         if det is not None:
+            self.lost_frames = 0
             if self.last_xy is not None:
                 vx = det[0] - self.last_xy[0]
                 vy = det[1] - self.last_xy[1]

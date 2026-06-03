@@ -26,7 +26,7 @@ Defaults:
     --det-every  1   (run player detection+tracking every Nth frame; set >1 to
                       reuse prior tracks between detections. The detector net is
                       the dominant per-frame cost, so this is an opt-in speed knob.)
-    --ocr-every  5   (run jersey OCR every Nth frame; reuse cached numbers between)
+    --ocr-every  10  (run jersey OCR every Nth frame; reuse cached numbers between)
     --ball-every 2   (run ball tracker every Nth frame; reuse last position between.
                       ROI passes are cheap, so 1 (every frame) is now affordable)
     --ball-roi   320 (square px window cropped around the predicted ball; the crop is
@@ -56,7 +56,7 @@ from multiscale import merge_detections, MultiScaleTracker
 
 _NUMBER_HISTORY: dict[int, list[tuple[str, float]]] = {}   # track_id -> recent (pred, conf) reads
 _NUMBER_LOCKED:  dict[int, str] = {}                        # track_id -> permanently decided number
-_VOTE_WINDOW = 75  # last 75 accepted OCR reads (with --ocr-every 5 that spans ~12.5 s @ 30 fps)
+_VOTE_WINDOW = 75  # last 75 accepted OCR reads (with --ocr-every 10 that spans ~25 s @ 30 fps)
 _LOCK_VOTES  = 8   # confident reads agreeing before a tracklet's number is permanently locked
 
 
@@ -226,7 +226,7 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
                            ocr_model_path="weights/jersey_best.pt",
                            ball_model_path="weights/ball-best.pt",
                            homography_path="homographies.npz", conf=0.4,
-                           ocr_every=5, ball_every=1, det_imgsz=480, det_every=1,
+                           ocr_every=10, ball_every=1, det_imgsz=480, det_every=1,
                            det_imgsz2=960, nms_iou=0.6):
     """Run the field-state pipeline headlessly and return predictions + timings.
 
@@ -400,7 +400,7 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
 
 def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=None,
                  output_path=None, conf=0.4, ocr_warning=False,
-                 ocr_every=5, ball_every=2, ball_roi=320, ball_full_every=30,
+                 ocr_every=10, ball_every=2, ball_roi=320, ball_full_every=30,
                  det_imgsz=480, det_every=1, det_imgsz2=960, nms_iou=0.6,
                  show_grid=False, homography_path="homographies.npz"):
     from ultralytics import YOLO
@@ -683,7 +683,7 @@ if __name__ == "__main__":
     nms_iou     = 0.6
     det_every   = 1
     ocr_warning = False
-    ocr_every   = 5
+    ocr_every   = 10
     ball_every  = 2
     ball_roi    = 320
     ball_full_every = 30
