@@ -88,7 +88,7 @@ COLORS = {
 }
 
 _MIN_CROP_PX = 10
-_OCR_CONF_THRESHOLD = 0.35  # min classifier confidence to accept a read
+_OCR_CONF_THRESHOLD = 0.45  # min classifier confidence to accept a read
 _BLUR_THRESHOLD     = 20    # min Laplacian variance; below = too blurry to read
 _CROP_BOTTOM        = 0.95  # keep from box top down to this fraction of player height
 _CROP_WIDTH_PAD     = 0.15  # widen past the bbox left/right by this fraction
@@ -302,8 +302,12 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
                         if cls == 0:
                             boxes.append([*box, tid, cls])
 
+        # ── Ball: run before fit so ball_xy is available for offense labeling ──
+        if ball_detector and _due(frame_num, ball_every):
+            ball_xy = ball_detector.update(frame)
+
         if boxes and not fitted:
-            fitted = classifier.fit(frame, boxes)
+            fitted = classifier.fit(frame, boxes, ball_xy=ball_xy)
 
         if fitted and boxes:
             new = [b for b in boxes if int(b[4]) not in cluster_by_id]
@@ -311,9 +315,6 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
                 for b, c in zip(new, classifier.assign_clusters(frame, new)):
                     if c >= 0:
                         cluster_by_id[int(b[4])] = c
-
-        if ball_detector and _due(frame_num, ball_every):
-            ball_xy = ball_detector.update(frame)
 
         def _clusters():
             return ([cluster_by_id.get(int(b[4]), -1) for b in boxes]
@@ -324,10 +325,7 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
                     if fitted else ["unknown"] * len(boxes))
 
         team_clusters = _clusters()
-        team_labels = _labels(team_clusters)
-        if fitted and boxes:
-            classifier.update_offense_from_ball(ball_xy, boxes, team_clusters)
-            team_labels = _labels(team_clusters)
+        team_labels   = _labels(team_clusters)
 
         if _due(frame_num, ocr_every):
             crops, valid_idx = _crops(frame, boxes)
@@ -484,8 +482,12 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
                         if cls == 0:  # players only
                             boxes.append([*box, tid, cls])
 
+        # ── Ball: run before fit so ball_xy is available for offense labeling ──
+        if ball_tracker and _due(frame_num, ball_every):
+            ball_xy = ball_tracker.update(frame)
+
         if boxes and not fitted:
-            fitted = classifier.fit(frame, boxes)
+            fitted = classifier.fit(frame, boxes, ball_xy=ball_xy)
 
         # ── Team: classify only newly-seen track_ids; cache cluster by id ─────
         # A player's team is fixed for the life of its track, so SigLIP runs once
@@ -497,12 +499,6 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
                     if c >= 0:
                         cluster_by_id[int(b[4])] = c
 
-        # ── Ball: ROI-tracked, throttled, persisted across skip frames ────────
-        if ball_tracker and _due(frame_num, ball_every):
-            ball_xy = ball_tracker.update(frame)
-
-        # Labels derived from cached clusters (free); the ball-vote is pure
-        # geometry so it runs every frame and a flip re-labels everyone instantly.
         def _clusters():
             return ([cluster_by_id.get(int(b[4]), -1) for b in boxes]
                     if fitted else [-1] * len(boxes))
@@ -512,10 +508,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
                     if fitted else ["unknown"] * len(boxes))
 
         team_clusters = _clusters()
-        team_labels = _labels(team_clusters)
-        if fitted and boxes:
-            if classifier.update_offense_from_ball(ball_xy, boxes, team_clusters):
-                team_labels = _labels(team_clusters)  # re-derive after a flip (no NN cost)
+        team_labels   = _labels(team_clusters)
         ball_carrier_track_id = _nearest_player_to_ball(ball_xy, boxes)
 
         # ── Jersey OCR: throttled, cached by track_id with _stable_number ─────
@@ -604,7 +597,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
                 cv2.putText(canvas, "C", (cx - 4, cy - 13),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 255, 255), 1)
             number = p["number"]
-            if number != "?":   # unknown numbers render as a blank circle
+            if number not in ("?", "unreadable"):   # unknown/unreadable render as a blank circle
                 (tw, th), _ = cv2.getTextSize(number, cv2.FONT_HERSHEY_SIMPLEX, 0.35, 1)
                 cv2.putText(canvas, number, (cx - tw // 2, cy + th // 2),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)

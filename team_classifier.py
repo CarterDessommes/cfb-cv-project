@@ -52,10 +52,8 @@ class TeamClassifier:
         self._centroids: np.ndarray | None = None  # centroids in raw embedding space
         self._track_clusters: dict[int, int] = {}
 
-        # 0 or 1 — which K-Means cluster is currently labeled "offense"
+        # 0 or 1 — which K-Means cluster is labeled "offense"; set at fit() time
         self._offense_cluster: int = 0
-        self._ball_votes: list[int] = []
-        self._VOTE_WIN = 30
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -102,10 +100,13 @@ class TeamClassifier:
     # Public API
     # ------------------------------------------------------------------
 
-    def fit(self, frame: np.ndarray, boxes: list) -> bool:
+    def fit(self, frame: np.ndarray, boxes: list, ball_xy=None) -> bool:
         """
         Fit the classifier on one frame.
         boxes: list of [x1, y1, x2, y2, ...] — extra fields are ignored.
+        ball_xy: (cx, cy) pixel position of the ball, used to label which
+                 cluster is offense (the cluster containing the player nearest
+                 the ball). If None, cluster 0 is arbitrarily labeled offense.
         Returns True on success, False if too few players were found.
         """
         crops, valid_idx = self._crops(frame, boxes)
@@ -128,7 +129,7 @@ class TeamClassifier:
         self._kmeans = KMeans(n_clusters=2, n_init=10, random_state=0)
         self._kmeans.fit(reduced)
 
-        # Also store per-cluster mean in raw embedding space for fast classify()
+        # Store per-cluster mean in raw embedding space for fast classify()
         labels = self._kmeans.labels_
         self._centroids = np.stack([
             embeddings[labels == 0].mean(axis=0),
@@ -139,6 +140,27 @@ class TeamClassifier:
             track_id = self._track_id(boxes[box_idx])
             if track_id is not None:
                 self._track_clusters[track_id] = int(cluster)
+
+        # Label offense as the cluster containing the player nearest the ball.
+        # The center is physically on the ball at the snap, so this is a clean
+        # one-shot read. Falls back to cluster 0 when ball is not yet detected.
+        if ball_xy is not None:
+            bx, by = float(ball_xy[0]), float(ball_xy[1])
+            nearest_cluster = 0
+            nearest_dist    = float("inf")
+            for box_idx, cluster in zip(valid_idx, labels):
+                box = boxes[box_idx]
+                cx  = (float(box[0]) + float(box[2])) / 2
+                cy  = (float(box[1]) + float(box[3])) / 2
+                dist = np.hypot(bx - cx, by - cy)
+                if dist < nearest_dist:
+                    nearest_dist    = dist
+                    nearest_cluster = int(cluster)
+            self._offense_cluster = nearest_cluster
+            print(f"fit: offense = cluster {nearest_cluster} "
+                  f"(nearest player {nearest_dist:.0f} px from ball)")
+        else:
+            print("fit: ball not detected — offense label is arbitrary (cluster 0)")
 
         print("fit: done — centroids locked")
         return True
@@ -186,7 +208,7 @@ class TeamClassifier:
 
         Unlike classify(), this returns the raw cluster — not an offense/defense
         label — so callers can cache it per track_id and re-derive the label each
-        frame from the current _offense_cluster (free, survives a vote flip).
+        frame from the fixed _offense_cluster set at fit() time.
         """
         if self._centroids is None:
             raise RuntimeError("Call fit() before assign_clusters().")
@@ -208,45 +230,6 @@ class TeamClassifier:
         if cluster < 0:
             return "unknown"
         return self._label_for_cluster(cluster)
-
-    def update_offense_from_ball(self, ball_xy, boxes: list, clusters: list[int]) -> bool:
-        """
-        Call after assigning raw clusters each frame. Votes over a rolling window
-        on which cluster is actually offense (the clustered player nearest the
-        ball). Flips the assignment once a majority is reached so the classifier
-        self-corrects before cluster labels are converted to offense/defense.
-        ball_xy: (cx, cy) in pixel coords, or None if ball not detected.
-        Returns True when the offense/defense label assignment changed.
-        """
-        if ball_xy is None or self._centroids is None:
-            return False
-
-        bx, by = float(ball_xy[0]), float(ball_xy[1])
-        nearest_cluster = None
-        nearest_dist = None
-        for box, cluster in zip(boxes, clusters):
-            if cluster < 0:
-                continue
-            cx = (float(box[0]) + float(box[2])) / 2
-            cy = (float(box[1]) + float(box[3])) / 2
-            dist = np.hypot(bx - cx, by - cy)
-            if nearest_dist is None or dist < nearest_dist:
-                nearest_dist = dist
-                nearest_cluster = int(cluster)
-
-        if nearest_cluster is None:
-            return False
-
-        # vote 1 = nearest player belongs to the other cluster (needs swap)
-        self._ball_votes.append(1 if nearest_cluster != self._offense_cluster else 0)
-        if len(self._ball_votes) > self._VOTE_WIN:
-            self._ball_votes.pop(0)
-
-        if sum(self._ball_votes) > len(self._ball_votes) // 2:
-            self._offense_cluster ^= 1
-            self._ball_votes.clear()
-            return True
-        return False
 
     def forget(self, track_id: int) -> None:
         """Drop a cached track id if the tracker recycles it."""
