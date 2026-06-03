@@ -1,14 +1,12 @@
 """
 Compute per-frame homography matrices from annotated keyframes.
-
 Output: .npz containing 'H' (N×3×3) and 'valid' (N bool mask).
 
-Recommended usage:
-    python3 compute_homographies.py annotations.json video.mp4 --out homographies.npz --interp --field-refine
+python3 compute_homographies.py annotations.json video.mp4 --out homographies.npz --interp --field-refine
 
 Modes:
-  --interp        Linear interpolation between keyframes + optional Hough correction (default/best)
-  --legacy        LK-track annotated keypoints from nearest anchor (accurate near keyframes, drifts in gaps)
+  --interp: linear interpolation between keyframes + optional Hough correction
+  --legacy: LK-track annotated keypoints from nearest anchor
 """
 from __future__ import annotations
 
@@ -27,9 +25,7 @@ FIELD_WIDTH  = 53.33
 FIELD_LENGTH = 100.0
 
 
-# ---------------------------------------------------------------------------
 # Keyframe homography
-# ---------------------------------------------------------------------------
 
 def frame_idx_from_name(name: str) -> int:
     m = re.search(r"frame_(\d+)", name)
@@ -39,7 +35,7 @@ def frame_idx_from_name(name: str) -> int:
 
 
 def compute_h_from_keypoints(kp_dict: dict[int, tuple[float, float]]) -> np.ndarray | None:
-    """Homography from {schema_id: (x_pix, y_pix)}.  None if <4 points."""
+    """Homography from {schema_id: (x_pix, y_pix)}.  None if less than 4 points."""
     if len(kp_dict) < 4:
         return None
     img_pts   = np.array([kp_dict[k]        for k in sorted(kp_dict)], dtype=np.float32)
@@ -48,12 +44,10 @@ def compute_h_from_keypoints(kp_dict: dict[int, tuple[float, float]]) -> np.ndar
     return H
 
 
-# ---------------------------------------------------------------------------
 # Field mask (green grass + white lines only — excludes scoreboard / crowd)
-# ---------------------------------------------------------------------------
 
 def _field_mask(bgr: np.ndarray) -> np.ndarray:
-    """Binary mask: green grass OR white field lines, bottom 15 % excluded."""
+    """Binary mask: green grass OR white field lines, bottom 15 excluded."""
     hsv   = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
     green = cv2.inRange(hsv, np.array([35, 35, 35]),  np.array([85, 255, 255]))
     white = cv2.inRange(hsv, np.array([0,  0,  160]), np.array([180, 55, 255]))
@@ -64,16 +58,14 @@ def _field_mask(bgr: np.ndarray) -> np.ndarray:
     return mask
 
 
-# ---------------------------------------------------------------------------
 # Field-line detection: far sideline + yard lines
-# ---------------------------------------------------------------------------
 
 def _sideline_pts(mask: np.ndarray, which: str = "far",
                   step: int = 30) -> list[tuple[float, float]]:
     """
     Sample the far (top) or near (bottom) sideline from the green field mask.
-    'far'  → topmost green row per column  (field_y = 0)
-    'near' → bottommost green row per column (field_y = FIELD_WIDTH)
+    'far'  -> topmost green row per column
+    'near' -> bottommost green row per column
     """
     h, w = mask.shape
     pts = []
@@ -113,8 +105,8 @@ def _find_hash_marks_on_segment(
     """
     Sample along a nearly-vertical yard-line segment and find the rows where
     white pixels extend significantly left/right (= hash marks crossing the line).
-    Returns up to 2 pixel (u, v) positions sorted top-to-bottom; maps to
-    HASH_FIELD_YS[0] and HASH_FIELD_YS[1] respectively by the caller.
+    Returns up to 2 pixel (u, v) positions sorted top-to-bottom.
+    maps to HASH_FIELD_YS[0] and HASH_FIELD_YS[1] respectively by the caller.
     """
     x1, y1, x2, y2 = segment
     h, w = white_mask.shape
@@ -162,15 +154,12 @@ def _find_hash_marks_on_segment(
 
 def refine_H_with_field_lines(bgr: np.ndarray, H: np.ndarray) -> np.ndarray:
     """
-    Detect the far/near sidelines, yard lines, and hash mark crossings; use
-    them as additional constraints to correct the current H.
+    Detect the far/near sidelines, yard lines, and hash mark crossings and use them as additional constraints to correct the current H.
 
-    Far sideline points  → field_y = 0
-    Near sideline points → field_y = FIELD_WIDTH
-    Yard-line points     → field_x = N*10
-    Hash mark crossings  → (field_x=N, field_y=23.58 or 29.75)  ← hard y anchor
-
-    Blend weight scales with inliers; cap at 50 % (70 % when hash marks found).
+    Far sideline points  -> field_y = 0
+    Near sideline points -> field_y = FIELD_WIDTH
+    Yard-line points     -> field_x = N*10
+    Hash mark crossings  -> (field_x=N, field_y=23.58 or 29.75)  <- hard y anchor
     """
     h_img, w_img = bgr.shape[:2]
 
@@ -184,7 +173,7 @@ def refine_H_with_field_lines(bgr: np.ndarray, H: np.ndarray) -> np.ndarray:
     img_pts:   list[list[float]] = []
     field_pts: list[list[float]] = []
 
-    # ── 1. Far sideline → field_y = 0, near sideline → field_y = FIELD_WIDTH ─
+    # Far sideline -> field_y = 0, near sideline -> field_y = FIELD_WIDTH
     for sideline_pts, field_y_target in [
         (detect_far_sideline_pts(bgr,  mask), 0.0),
         (detect_near_sideline_pts(bgr, mask), FIELD_WIDTH),
@@ -197,7 +186,7 @@ def refine_H_with_field_lines(bgr: np.ndarray, H: np.ndarray) -> np.ndarray:
             img_pts.append([u, v])
             field_pts.append([field_x, field_y_target])
 
-    # ── 2. Yard lines → field_x = N*10 ───────────────────────────────────
+    # Yard lines -> field_x = N*10
     gray_m = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
     gray_m = cv2.bitwise_and(gray_m, gray_m, mask=mask)
     edges  = cv2.Canny(cv2.GaussianBlur(gray_m, (5, 5), 0), 50, 150)
@@ -241,8 +230,8 @@ def refine_H_with_field_lines(bgr: np.ndarray, H: np.ndarray) -> np.ndarray:
                 img_pts.append([sx, sy])
                 field_pts.append([float(yard_x), field_y])
 
-    # ── 3. Hash mark crossings → hard (field_x, 23.58 / 29.75) anchors ───
-    # These give a y-axis constraint even when only one yard line is visible.
+    # Hash mark crossings -> hard (field_x, 23.58 / 29.75) anchors
+    # These give a y-axis constraint even when only one yard line is visible
     has_hash = False
     if matched_segs:
         hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
@@ -267,33 +256,28 @@ def refine_H_with_field_lines(bgr: np.ndarray, H: np.ndarray) -> np.ndarray:
         return H
 
     # Cap blend: 25 % normally, 40 % when hash marks anchor the y-axis.
-    # Keeping this low prevents noisy per-frame detection from causing jitter;
+    # Keeping this low prevents noisy per-frame detection from causing jitter
     # temporal smoothing in the caller handles larger accumulated drift.
     max_alpha = 0.40 if has_hash else 0.25
     alpha = min(max_alpha, int(mask_r.sum()) / 40.0) if mask_r is not None else 0.15
     return (1.0 - alpha) * H + alpha * H_ref
 
 
-# ---------------------------------------------------------------------------
 # Camera motion detection
-# ---------------------------------------------------------------------------
 
 def _motion_score(bgr_prev: np.ndarray, bgr_curr: np.ndarray) -> float:
     """
     Median absolute pixel change between two grayscale frames.
-    Still camera (player motion only): median ≈ 0–1, most pixels unchanged.
-    Camera pan/zoom: everything shifts → median jumps to 5–30+.
-    Using median (not mean) makes it robust to player movement which only
-    affects a minority of pixels.
+    Still camera (player motion only): median around 0–1, most pixels unchanged.
+    Camera pan/zoom: everything shifts -> median jumps to 5–30+.
+    Using median so it makes it robust to player movement which only affects a minority of pixels.
     """
     g_prev = cv2.cvtColor(bgr_prev, cv2.COLOR_BGR2GRAY)
     g_curr = cv2.cvtColor(bgr_curr, cv2.COLOR_BGR2GRAY)
     return float(np.median(cv2.absdiff(g_prev, g_curr)))
 
 
-# ---------------------------------------------------------------------------
 # Temporal smoothing
-# ---------------------------------------------------------------------------
 
 def temporal_smooth_H(
     homographies: list,
@@ -301,8 +285,8 @@ def temporal_smooth_H(
 ) -> list:
     """
     Gaussian-weighted sliding-window smooth over the H array.
-    Neighboring frames stabilize each other, eliminating per-frame detection jitter.
-    window=9 means ±4 frames contribute; increase for more smoothing.
+    Neighboring frames stabilize each othe
+    window=9 means plus or minus 4 frames contribute, if you increase there is more smoothing.
     """
     n = len(homographies)
     half = window // 2
@@ -326,9 +310,7 @@ def temporal_smooth_H(
     return smoothed
 
 
-# ---------------------------------------------------------------------------
 # Main
-# ---------------------------------------------------------------------------
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Compute per-frame homographies")

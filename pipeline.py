@@ -400,7 +400,8 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
                  output_path=None, conf=0.4, ocr_warning=False,
                  ocr_every=10, ball_every=2, ball_roi=320, ball_full_every=30,
                  det_imgsz=480, det_every=1, det_imgsz2=960, nms_iou=0.6,
-                 show_grid=False, homography_path="homographies.npz"):
+                 show_grid=False, homography_path="homographies.npz",
+                 ball_conf=0.3):
     from ultralytics import YOLO
 
     _NUMBER_HISTORY.clear()
@@ -416,7 +417,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
     classifier    = TeamClassifier()
     ocr           = JerseyOCR(ocr_model_path)
     ball_tracker  = (BallTracker(ball_model_path, roi_size=ball_roi,
-                                 full_every=ball_full_every)
+                                 full_every=ball_full_every, ball_conf=ball_conf)
                      if ball_model_path else None)
     fitted        = False
 
@@ -683,6 +684,7 @@ if __name__ == "__main__":
     debug       = False
     show_grid   = False
     homography_path = "homographies.npz"
+    ball_conf   = 0.3
 
     i = 2
     while i < len(sys.argv):
@@ -724,6 +726,8 @@ if __name__ == "__main__":
             show_grid = True; i += 1
         elif sys.argv[i] == "--homography" and i + 1 < len(sys.argv):
             homography_path = sys.argv[i + 1]; i += 2
+        elif sys.argv[i] == "--ball-conf" and i + 1 < len(sys.argv):
+            ball_conf = float(sys.argv[i + 1]); i += 2
         else:
             i += 1
 
@@ -732,4 +736,5 @@ if __name__ == "__main__":
                  ball_roi=ball_roi, ball_full_every=ball_full_every,
                  det_imgsz=det_imgsz, det_every=det_every,
                  det_imgsz2=det_imgsz2, nms_iou=nms_iou,
-                 show_grid=show_grid, homography_path=homography_path)
+                 show_grid=show_grid, homography_path=homography_path,
+                 ball_conf=ball_conf)
