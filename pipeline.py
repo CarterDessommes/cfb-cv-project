@@ -550,9 +550,9 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
 
             x1, y1, x2, y2 = bbox
             color = COLORS[team]
-            locked = "L" if track_id in _NUMBER_LOCKED else ""
+            num_str = f" #{number}" if number != "?" else ""   # blank when unreadable
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-            cv2.putText(frame, f"{team.upper()} #{number}{locked}",
+            cv2.putText(frame, f"{team.upper()}{num_str}",
                         (x1, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
         # ── Grid overlay: project field lines onto broadcast frame ──────────
@@ -603,8 +603,11 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
                 cv2.circle(canvas, (cx, cy), 9, (0, 0, 0), 1)
                 cv2.putText(canvas, "C", (cx - 4, cy - 13),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 255, 255), 1)
-            cv2.putText(canvas, str(p["track_id"]), (cx + 8, cy + 4),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
+            number = p["number"]
+            if number != "?":   # unknown numbers render as a blank circle
+                (tw, th), _ = cv2.getTextSize(number, cv2.FONT_HERSHEY_SIMPLEX, 0.35, 1)
+                cv2.putText(canvas, number, (cx - tw // 2, cy + th // 2),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
 
         # Resize canvas to match frame height and show side by side
         target_h = frame.shape[0]
