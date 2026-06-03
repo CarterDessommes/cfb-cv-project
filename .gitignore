@@ -20,3 +20,4 @@ benchmarks/fixtures/key_frames/
 # SAM2 model weights (too large for Git)
 sam2*.pt
 sam2.1*.pt
+test media/videos/fullgame.mp4
