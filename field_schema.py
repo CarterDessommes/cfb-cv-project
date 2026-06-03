@@ -3,12 +3,11 @@ Keypoint schema for football field landmarks.
 NFL field: 100 yds x 53.33 yds (excluding endzones).
 Shared source of truth for keypoint IDs across the project.
 
-Schema: id = yard_idx * 4 + rail_idx
+Rails (both groups):
   rail 0 = near_sideline (y = 0)
   rail 1 = near_hash     (y = 23.58)
   rail 2 = far_hash      (y = 29.75)
   rail 3 = far_sideline  (y = 53.33)
-  yard_idx 0..10 -> yards 0, 10, 20, ..., 100
 """
 from __future__ import annotations
 
@@ -21,7 +20,7 @@ RAIL_NAMES: list[str] = ["near_sideline", "near_hash", "far_hash", "far_sideline
 # Yard line x-coordinates (goal line to goal line, every 10 yds)
 YARD_LINES: list[int] = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 
-# Build the keypoint list: 44 entries, indexed by ID 0..43
+# Build the keypoint list: 44 entries, IDs 0..43
 KEYPOINTS: list[dict] = []
 for i, x in enumerate(YARD_LINES):
     for j, (y, rail_name) in enumerate(zip(RAILS, RAIL_NAMES)):
@@ -33,13 +32,25 @@ for i, x in enumerate(YARD_LINES):
             "name": f"yd{x:03d}_{rail_name}",
         })
 
-# Numpy array of (x, y) field coords, indexed by keypoint ID — used by findHomography
+# Append 5-yard-line landmarks: IDs 44..83
+YARD_LINES_5: list[int] = [5, 15, 25, 35, 45, 55, 65, 75, 85, 95]
+_base = 44
+for _i, x in enumerate(YARD_LINES_5):
+    for j, (y, rail_name) in enumerate(zip(RAILS, RAIL_NAMES)):
+        kp_id = _base + _i * len(RAILS) + j
+        KEYPOINTS.append({
+            "id": kp_id,
+            "x": float(x),
+            "y": float(y),
+            "name": f"yd{x:03d}_{rail_name}",
+        })
+
+# Numpy array of (x, y) field coords, indexed by keypoint ID
 FIELD_LANDMARKS: np.ndarray = np.array(
     [[kp["x"], kp["y"]] for kp in KEYPOINTS], dtype=np.float32
 )
 
-# Flip pairs for horizontal-image augmentation: kp i flips to FLIP_PAIRS[i]
-# After horizontal image flip, x_field -> 100 - x_field; rail (y) unchanged.
+# Flip pairs: after horizontal image flip
 FLIP_PAIRS: dict[int, int] = {}
 n_yards = len(YARD_LINES)
 n_rails = len(RAILS)
@@ -47,6 +58,12 @@ for i in range(n_yards):
     for j in range(n_rails):
         orig_id = i * n_rails + j
         flipped_id = (n_yards - 1 - i) * n_rails + j
+        FLIP_PAIRS[orig_id] = flipped_id
+n_yards5 = len(YARD_LINES_5)
+for i in range(n_yards5):
+    for j in range(n_rails):
+        orig_id    = _base + i * n_rails + j
+        flipped_id = _base + (n_yards5 - 1 - i) * n_rails + j
         FLIP_PAIRS[orig_id] = flipped_id
 
 

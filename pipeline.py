@@ -45,6 +45,8 @@ from field_mapper import (
     build_field_canvas,
     field_to_canvas_point,
     load_homographies,
+    draw_field_overlay,
+    _homography_for_frame,
     CANVAS_SCALE,
 )
 from yolo_utils import boxes_to_cpu_arrays
@@ -399,7 +401,8 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
 def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=None,
                  output_path=None, conf=0.4, ocr_warning=False,
                  ocr_every=5, ball_every=2, ball_roi=320, ball_full_every=30,
-                 det_imgsz=480, det_every=1, det_imgsz2=960, nms_iou=0.6):
+                 det_imgsz=480, det_every=1, det_imgsz2=960, nms_iou=0.6,
+                 show_grid=False, homography_path="homographies.npz"):
     from ultralytics import YOLO
 
     _NUMBER_HISTORY.clear()
@@ -443,7 +446,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
     base_canvas = build_field_canvas(scale=CANVAS_SCALE)
 
     # Load homographies once; indexed per frame in memory inside the loop.
-    homography = load_homographies("homographies.npz")
+    homography = load_homographies(homography_path)
 
     frame_num = 0
     ball_xy: tuple[float, float] | None = None   # persisted across throttled frames
@@ -551,6 +554,12 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
             cv2.putText(frame, f"{team.upper()} #{number}{locked}",
                         (x1, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+
+        # ── Grid overlay: project field lines onto broadcast frame ──────────
+        if show_grid:
+            H_cur = _homography_for_frame(homography, frame_num - 1)
+            if H_cur is not None:
+                draw_field_overlay(frame, H_cur)
 
         # ── Field mapping: project players to top-down field coords ─────────
         field_points = project_players(
@@ -676,6 +685,8 @@ if __name__ == "__main__":
     ball_roi    = 320
     ball_full_every = 30
     debug       = False
+    show_grid   = False
+    homography_path = "homographies.npz"
 
     i = 2
     while i < len(sys.argv):
@@ -713,6 +724,10 @@ if __name__ == "__main__":
             ocr_warning = True; i += 1
         elif sys.argv[i] == "--debug":
             debug = True; i += 1
+        elif sys.argv[i] == "--show-grid":
+            show_grid = True; i += 1
+        elif sys.argv[i] == "--homography" and i + 1 < len(sys.argv):
+            homography_path = sys.argv[i + 1]; i += 2
         else:
             i += 1
 
@@ -720,4 +735,5 @@ if __name__ == "__main__":
                  ocr_every=ocr_every, ball_every=ball_every,
                  ball_roi=ball_roi, ball_full_every=ball_full_every,
                  det_imgsz=det_imgsz, det_every=det_every,
-                 det_imgsz2=det_imgsz2, nms_iou=nms_iou)
+                 det_imgsz2=det_imgsz2, nms_iou=nms_iou,
+                 show_grid=show_grid, homography_path=homography_path)

@@ -258,3 +258,39 @@ def build_field_canvas(scale: int = CANVAS_SCALE) -> np.ndarray:
         cv2.putText(canvas, label, (int(x_yd * scale) - 8, h // 2),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.35, (255, 255, 255), 1)
     return canvas
+
+
+def draw_field_overlay(frame: np.ndarray, H: np.ndarray) -> None:
+    """Project yard lines, hash marks and sidelines onto the broadcast frame using H^{-1}."""
+    H_inv = np.linalg.inv(H)
+    h, w = frame.shape[:2]
+
+    def to_px(fx: float, fy: float):
+        pt = cv2.perspectiveTransform(np.array([[[fx, fy]]], dtype=np.float64), H_inv)[0][0]
+        x, y = int(pt[0]), int(pt[1])
+        return (x, y) if -w <= x <= 2*w and -h <= y <= 2*h else None
+
+    # Yard lines
+    for x_yd in range(0, 101, 10):
+        p1, p2 = to_px(float(x_yd), 0.0), to_px(float(x_yd), FIELD_WIDTH)
+        if p1 and p2:
+            cv2.line(frame, p1, p2, (0, 255, 255), 1, cv2.LINE_AA)
+            mid = to_px(float(x_yd), FIELD_WIDTH / 2)
+            if mid:
+                label = str(x_yd) if x_yd <= 50 else str(100 - x_yd)
+                cv2.putText(frame, label, (mid[0]+3, mid[1]),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
+
+    # Sidelines
+    for y_yd in [0.0, FIELD_WIDTH]:
+        pts = [to_px(float(x), y_yd) for x in range(0, 101, 5)]
+        pts = [p for p in pts if p]
+        for j in range(1, len(pts)):
+            cv2.line(frame, pts[j-1], pts[j], (0, 200, 255), 2, cv2.LINE_AA)
+
+    # Hash marks
+    for y_yd in [23.58, 29.75]:
+        for x_yd in range(0, 101, 5):
+            p1, p2 = to_px(float(x_yd), y_yd-0.5), to_px(float(x_yd), y_yd+0.5)
+            if p1 and p2:
+                cv2.line(frame, p1, p2, (180, 180, 180), 1, cv2.LINE_AA)
