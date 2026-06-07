@@ -1,4 +1,4 @@
-from field_mapper import CANVAS_SCALE, FIELD_WIDTH, field_to_canvas_point
+from src.field_mapper import CANVAS_SCALE, FIELD_WIDTH, field_to_canvas_point
 
 
 def test_field_to_canvas_point_flips_y_across_x_axis():

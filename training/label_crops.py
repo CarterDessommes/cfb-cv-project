@@ -8,7 +8,7 @@ Two modes:
                    Outputs crops/ + labels.csv ready for fine-tuning.
 
 Usage:
-    python3 label_crops.py <video> --out-dir <dir>
+    python3 training/label_crops.py <video> --out-dir <dir>
                            [--det PATH]        default: weights/player-best.pt
                            [--conf N]          detection threshold, default 0.4
                            [--every N]         sample every N frames, default 5
@@ -27,11 +27,16 @@ import os
 import csv
 import cv2
 import numpy as np
+from pathlib import Path
 from PIL import Image
 from ultralytics import YOLO
 
-from team_classifier import _best_device
-from pipeline import _number_crop
+# Add project root to path for imports
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from src.team_classifier import _best_device
 
 
 _MAX_PER_TRACK   = 8
@@ -39,6 +44,22 @@ _TRACK_FRAME_GAP = 20
 _EXTRACT_BLUR_MIN = 12
 _EXTRACT_MIN_H    = 24
 _EXTRACT_MIN_W    = 16
+
+# Crop parameters (copied from pipeline to avoid circular import)
+_CROP_BOTTOM    = 0.95
+_CROP_WIDTH_PAD = 0.15
+
+
+def _number_crop(frame, box):
+    """Generous crop covering (nearly) the whole player so the chest number is
+    never clipped by an off-center number or out-flung arms. It's a wide net."""
+    x1, y1, x2, y2 = int(box[0]), int(box[1]), int(box[2]), int(box[3])
+    h, w = y2 - y1, x2 - x1
+    ty1 = max(0, y1)
+    ty2 = min(frame.shape[0], y1 + int(h * _CROP_BOTTOM))
+    sx1 = max(0, x1 - int(w * _CROP_WIDTH_PAD))
+    sx2 = min(frame.shape[1], x2 + int(w * _CROP_WIDTH_PAD))
+    return frame[ty1:ty2, sx1:sx2]
 
 
 def _load_vlm(model_id: str = "Qwen/Qwen2.5-VL-3B-Instruct"):
@@ -241,7 +262,7 @@ def run(video_path, out_dir, det_path, det_conf, every_n, extract_only,
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python3 label_crops.py <video> --out-dir <dir> [options]")
+        print("Usage: python3 training/label_crops.py <video> --out-dir <dir> [options]")
         sys.exit(1)
 
     video        = sys.argv[1]

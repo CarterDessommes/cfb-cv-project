@@ -2,8 +2,8 @@
 
 import numpy as np
 
-from team_classifier import _best_device
-from yolo_utils import boxes_to_cpu_arrays
+from .team_classifier import _best_device
+from .yolo_utils import boxes_to_cpu_arrays
 
 
 class BallTracker:

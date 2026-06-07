@@ -8,16 +8,21 @@ import numpy as np
 import cv2
 import sys
 import os
+from pathlib import Path
 
-from ball_tracker import BallTracker
-from yolo_utils import boxes_to_cpu_arrays, due
-from multiscale import merge_detections, MultiScaleTracker
+from .ball_tracker import BallTracker
+from .yolo_utils import boxes_to_cpu_arrays, due
+from .multiscale import merge_detections, MultiScaleTracker
 
 # Constants
 DEFAULT_BALL_MODEL = "weights/ball-best.pt"
 DEFAULT_BALL_EVERY = 2
 DEFAULT_BALL_ROI = 320
 DEFAULT_BALL_FULL_EVERY = 30
+
+# Config directory is now configs/ relative to the project root
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_CONFIGS_DIR = _PROJECT_ROOT / "configs"
 
 
 def load_model(model_path):
@@ -30,14 +35,13 @@ def load_model(model_path):
 
 def get_tracker_config_path(ball=False, multiscale=False):
     """Get path to a BoT-SORT config file."""
-    script_dir = os.path.dirname(os.path.abspath(__file__))
     if multiscale:
         config_name = "botsort_multiscale.yaml"
     elif ball:
         config_name = "botsort_ball.yaml"
     else:
         config_name = "botsort.yaml"
-    return os.path.join(script_dir, config_name)
+    return str(_CONFIGS_DIR / config_name)
 
 
 def track_video(video_path, model_path, output_path=None, confidence=0.4, show=True,

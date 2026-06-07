@@ -2,7 +2,7 @@
 Compute per-frame homography matrices from annotated keyframes.
 Output: .npz containing 'H' (N×3×3) and 'valid' (N bool mask).
 
-python3 compute_homographies.py annotations.json video.mp4 --out homographies.npz --interp --field-refine
+python3 field/compute_homographies.py field/annotations.json video.mp4 --out field/homographies.npz --interp --field-refine
 
 Modes:
   --interp: linear interpolation between keyframes + optional Hough correction
@@ -18,8 +18,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from field_schema import FIELD_LANDMARKS
-from field_geometry_auto import split_line_families
+from .field_schema import FIELD_LANDMARKS
+from .field_geometry_auto import split_line_families
 
 FIELD_WIDTH  = 53.33
 FIELD_LENGTH = 100.0
@@ -316,7 +316,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Compute per-frame homographies")
     parser.add_argument("annotations_json")
     parser.add_argument("video")
-    parser.add_argument("--out",           default="homographies.npz")
+    parser.add_argument("--out",           default="field/homographies.npz")
     parser.add_argument("--field-refine",  action="store_true",
                         help="Apply sideline + yard-line Hough correction each frame")
     parser.add_argument("--smooth",        type=int, default=9, metavar="N",

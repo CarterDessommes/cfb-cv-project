@@ -468,7 +468,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--det", type=Path, default=ROOT / "weights/player-best.pt")
     parser.add_argument("--ocr", type=Path, default=ROOT / "weights/jersey_best.pt")
     parser.add_argument("--ball", type=Path, default=ROOT / "weights/ball-best.pt")
-    parser.add_argument("--homography", type=Path, default=ROOT / "homographies.npz")
+    parser.add_argument("--homography", type=Path, default=ROOT / "field/homographies.npz")
     parser.add_argument("--conf", type=float, default=0.4)
     parser.add_argument("--imgsz", type=int, default=480)
     parser.add_argument("--imgsz2", type=int, default=960,

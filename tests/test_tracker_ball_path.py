@@ -14,8 +14,9 @@ def _function_tree(path: Path, name: str) -> ast.FunctionDef:
 
 
 def test_tracker_uses_shared_roi_ball_tracker():
-    tracker_source = (ROOT / "tracker.py").read_text()
-    track_video = _function_tree(ROOT / "tracker.py", "track_video")
+    tracker_path = ROOT / "src" / "tracker.py"
+    tracker_source = tracker_path.read_text()
+    track_video = _function_tree(tracker_path, "track_video")
 
     track_calls = [
         node
@@ -39,7 +40,7 @@ def test_tracker_uses_shared_roi_ball_tracker():
         and node.func.attr == "update"
     ]
 
-    assert "from ball_tracker import BallTracker" in tracker_source
+    assert "from .ball_tracker import BallTracker" in tracker_source
     assert len(track_calls) == 1
     assert len(ball_tracker_calls) == 1
     assert len(update_calls) == 2  # MultiScaleTracker.update + BallTracker.update

@@ -39,8 +39,8 @@ import time
 import cv2
 import numpy as np
 
-from team_classifier import TeamClassifier, _best_device
-from field_mapper import (
+from src.team_classifier import TeamClassifier, _best_device
+from src.field_mapper import (
     project_players,
     build_field_canvas,
     field_to_canvas_point,
@@ -49,10 +49,10 @@ from field_mapper import (
     _homography_for_frame,
     CANVAS_SCALE,
 )
-from yolo_utils import boxes_to_cpu_arrays, due
-from tracker import get_tracker_config_path
-from ball_tracker import BallTracker
-from multiscale import merge_detections, MultiScaleTracker
+from src.yolo_utils import boxes_to_cpu_arrays, due
+from src.tracker import get_tracker_config_path
+from src.ball_tracker import BallTracker
+from src.multiscale import merge_detections, MultiScaleTracker
 
 _NUMBER_HISTORY: dict[int, list[tuple[str, float]]] = {}   # track_id -> recent (pred, conf) reads
 _NUMBER_LOCKED:  dict[int, str] = {}                        # track_id -> permanently decided number
@@ -395,7 +395,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
                  output_path=None, conf=0.4, ocr_warning=False,
                  ocr_every=10, ball_every=2, ball_roi=320, ball_full_every=30,
                  det_imgsz=480, det_every=1, det_imgsz2=960, nms_iou=0.6,
-                 show_grid=False, homography_path="homographies.npz",
+                 show_grid=False, homography_path="field/homographies.npz",
                  ball_conf=0.3):
     from ultralytics import YOLO
 
@@ -678,7 +678,7 @@ if __name__ == "__main__":
     ball_full_every = 30
     debug       = False
     show_grid   = False
-    homography_path = "homographies.npz"
+    homography_path = "field/homographies.npz"
     ball_conf   = 0.3
 
     i = 2

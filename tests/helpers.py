@@ -3,7 +3,7 @@ import types
 
 import numpy as np
 
-from team_classifier import TeamClassifier
+from src.team_classifier import TeamClassifier
 
 
 class CountingEmbed:
