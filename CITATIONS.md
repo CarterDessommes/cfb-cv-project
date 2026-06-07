@@ -118,3 +118,16 @@ McInnes, L., Healy, J., & Melville, J. (2018). UMAP: Uniform manifold approximat
 
 - Repository: https://github.com/lmcinnes/umap
 - Documentation: https://umap-learn.readthedocs.io/
+
+## AI Usage
+
+We used AI in this project for a number of different things.
+
+AI was useful to us in the research phase of our project. It proved very good at finding relevent papers to read.
+
+We mainly used it as our own personal TA that was on call 24/7, or perhaps as a 4th member of the team. We bounced ideas off it, had it poke holes in our approahces, asked it to help brainstorm, etc.
+
+Generally, we strayed away from using AI to generate code, though we did use it to help make the boilerplate code for our training notebooks as none of us had really ever trained models before.
+
+We also used AI to help keep our codebase clean by helping with commenting the codbase, formatting code, and generating the read me.
+
