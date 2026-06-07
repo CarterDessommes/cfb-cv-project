@@ -42,4 +42,4 @@ def test_tracker_uses_shared_roi_ball_tracker():
     assert "from ball_tracker import BallTracker" in tracker_source
     assert len(track_calls) == 1
     assert len(ball_tracker_calls) == 1
-    assert len(update_calls) == 1
+    assert len(update_calls) == 2  # MultiScaleTracker.update + BallTracker.update

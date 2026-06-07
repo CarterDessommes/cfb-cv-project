@@ -49,7 +49,7 @@ from field_mapper import (
     _homography_for_frame,
     CANVAS_SCALE,
 )
-from yolo_utils import boxes_to_cpu_arrays
+from yolo_utils import boxes_to_cpu_arrays, due
 from tracker import get_tracker_config_path
 from ball_tracker import BallTracker
 from multiscale import merge_detections, MultiScaleTracker
@@ -74,11 +74,6 @@ def _stable_number(track_id: int, pred: str, conf: float) -> str:
     if sum(1 for p, _ in history if p == best) >= _LOCK_VOTES:
         _NUMBER_LOCKED[track_id] = best
     return best
-
-
-def _due(frame_num: int, every: int) -> bool:
-    """True on frames where a throttled model should run (frames 1, 1+every, ...)."""
-    return every <= 1 or frame_num % every == 1
 
 
 COLORS = {
@@ -281,7 +276,7 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
 
         # Player detection+tracking is the dominant per-frame cost, so run it on a
         # stride and reuse the prior tracks between (persist=True keeps the IDs).
-        if _due(frame_num, det_every):
+        if due(frame_num, det_every):
             if mst is not None:
                 merged = merge_detections(
                     detector, frame, conf, device, [det_imgsz, det_imgsz2], nms_iou
@@ -303,7 +298,7 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
                             boxes.append([*box, tid, cls])
 
         # ── Ball: run before fit so ball_xy is available for offense labeling ──
-        if ball_detector and _due(frame_num, ball_every):
+        if ball_detector and due(frame_num, ball_every):
             ball_xy = ball_detector.update(frame)
 
         if boxes and not fitted:
@@ -327,7 +322,7 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
         team_clusters = _clusters()
         team_labels   = _labels(team_clusters)
 
-        if _due(frame_num, ocr_every):
+        if due(frame_num, ocr_every):
             crops, valid_idx = _crops(frame, boxes)
             ocr_results = ocr.predict(crops)
             for j, (top1, top5, blur_var) in enumerate(ocr_results):
@@ -462,7 +457,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
         # The detector net is the dominant per-frame cost, so run it every Nth
         # frame and coast on the previous tracks. persist=True keeps BoT-SORT IDs
         # stable across the skipped frames (see tracker.py for the same pattern).
-        if _due(frame_num, det_every):
+        if due(frame_num, det_every):
             if mst is not None:
                 merged = merge_detections(
                     detector, frame, conf, device, [det_imgsz, det_imgsz2], nms_iou
@@ -484,7 +479,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
                             boxes.append([*box, tid, cls])
 
         # ── Ball: run before fit so ball_xy is available for offense labeling ──
-        if ball_tracker and _due(frame_num, ball_every):
+        if ball_tracker and due(frame_num, ball_every):
             ball_xy = ball_tracker.update(frame)
 
         if boxes and not fitted:
@@ -513,7 +508,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
         ball_carrier_track_id = _nearest_player_to_ball(ball_xy, boxes)
 
         # ── Jersey OCR: throttled, cached by track_id with _stable_number ─────
-        if _due(frame_num, ocr_every):
+        if due(frame_num, ocr_every):
             crops, valid_idx = _crops(frame, boxes)
             ocr_results = ocr.predict(crops)
             for j, (top1, top5, blur_var) in enumerate(ocr_results):

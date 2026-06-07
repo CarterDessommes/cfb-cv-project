@@ -10,7 +10,7 @@ import sys
 import os
 
 from ball_tracker import BallTracker
-from yolo_utils import boxes_to_cpu_arrays
+from yolo_utils import boxes_to_cpu_arrays, due
 from multiscale import merge_detections, MultiScaleTracker
 
 # Constants
@@ -38,11 +38,6 @@ def get_tracker_config_path(ball=False, multiscale=False):
     else:
         config_name = "botsort.yaml"
     return os.path.join(script_dir, config_name)
-
-
-def _due(frame_num: int, every: int) -> bool:
-    """True on frames where a throttled model should run (frames 1, 1+every, ...)."""
-    return every <= 1 or frame_num % every == 1
 
 
 def track_video(video_path, model_path, output_path=None, confidence=0.4, show=True,
@@ -162,7 +157,7 @@ def track_video(video_path, model_path, output_path=None, confidence=0.4, show=T
                         tracks.append(track_data)
 
             # Run ROI-based ball tracking if enabled
-            if ball_tracker is not None and _due(detection_num, ball_every):
+            if ball_tracker is not None and due(detection_num, ball_every):
                 ball_xy = ball_tracker.update(frame)
         # On skipped frames, reuse previous tracks
 

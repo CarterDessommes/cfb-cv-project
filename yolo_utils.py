@@ -26,3 +26,8 @@ def boxes_to_cpu_arrays(boxes_obj):
     cls = _as_numpy(boxes_cpu.cls, dtype=int)
     conf = _as_numpy(boxes_cpu.conf)
     return xyxy, ids, cls, conf
+
+
+def due(frame_num: int, every: int) -> bool:
+    """True on frames where a throttled model should run (frames 1, 1+every, ...)."""
+    return every <= 1 or frame_num % every == 1
