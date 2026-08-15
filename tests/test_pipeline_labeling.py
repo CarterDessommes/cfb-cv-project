@@ -24,7 +24,7 @@ def test_nearest_player_to_ball_handles_missing_ball_or_boxes():
     assert pipeline._nearest_player_to_ball((10, 10), []) is None
 
 
-def test_pipeline_uses_cluster_assignment_cache_path():
+def test_pipeline_uses_team_voter_path():
     tree = ast.parse(inspect.getsource(pipeline.run_pipeline))
     classify_calls = [
         node
@@ -33,16 +33,38 @@ def test_pipeline_uses_cluster_assignment_cache_path():
         and isinstance(node.func, ast.Attribute)
         and node.func.attr == "classify"
     ]
-    assign_cluster_calls = [
+    voter_update_calls = [
         node
         for node in ast.walk(tree)
         if isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)
-        and node.func.attr == "assign_clusters"
+        and node.func.attr == "update"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "voter"
     ]
 
     assert len(classify_calls) == 0
-    assert len(assign_cluster_calls) == 1
+    assert len(voter_update_calls) == 1
+
+
+def test_team_voter_majority_and_self_correction():
+    voter = pipeline.TeamVoter.__new__(pipeline.TeamVoter)
+    voter._votes = {}
+
+    voter._vote(7, 0)
+    assert voter.cluster_of(7) == 0          # single vote wins immediately
+
+    voter._vote(7, 1)
+    assert voter.cluster_of(7) == 1          # 1-1 tie -> latest observation
+
+    voter._vote(7, 0)
+    assert voter.cluster_of(7) == 0          # majority of last 3
+
+    voter._vote(7, 1)
+    voter._vote(7, 1)
+    assert voter.cluster_of(7) == 1          # drift corrected after two sweeps
+
+    assert voter.cluster_of(99) == -1        # unseen track
 
 
 def test_pipeline_marks_ball_carrier_without_ball_trail():

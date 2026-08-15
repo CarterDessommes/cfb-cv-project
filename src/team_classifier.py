@@ -1,11 +1,14 @@
 """
-Step 4: Team Classifier using SigLIP + UMAP + K-Means.
+Step 4: Team Classifier using SigLIP + K-Means.
 
 Pipeline:
   1. Crop each player bounding box from the frame
   2. Embed each crop with SigLIP (vision encoder)
-  3. Reduce embeddings to 2D with UMAP
-  4. K-Means (k=2) to split into two teams
+  3. K-Means (k=2) directly on the raw embeddings to split into two teams
+
+(K-Means on raw SigLIP embeddings produces the same split as the previous
+UMAP→K-Means reduction on the benchmark videos, without umap-learn's
+multi-second first-call JIT cost.)
 
 Usage:
     classifier = TeamClassifier()
@@ -34,7 +37,7 @@ def _best_device():
 
 class TeamClassifier:
     """
-    Classifies players into two teams using SigLIP embeddings + UMAP + K-Means.
+    Classifies players into two teams using SigLIP embeddings + K-Means.
 
     Call fit() once on a frame where most players are visible, then classify()
     on every subsequent frame.
@@ -47,7 +50,6 @@ class TeamClassifier:
         self.model = SiglipVisionModel.from_pretrained(_MODEL_ID).to(self.device)
         self.model.eval()
 
-        self._umap = None
         self._kmeans = None
         self._centroids: np.ndarray | None = None  # centroids in raw embedding space
         self._track_clusters: dict[int, int] = {}
@@ -79,6 +81,10 @@ class TeamClassifier:
             return int(box[4])
         except (TypeError, ValueError):
             return None
+
+    def warmup(self) -> None:
+        """Build the MPS/CUDA graphs once so the first real embed isn't slow."""
+        self._embed([np.zeros((64, 48, 3), dtype=np.uint8)])
 
     @torch.no_grad()
     def _embed(self, crops: list) -> np.ndarray:
@@ -115,19 +121,13 @@ class TeamClassifier:
             return False
 
         from sklearn.cluster import KMeans
-        from umap import UMAP
 
         print(f"fit: embedding {len(crops)} player crops...")
         embeddings = self._embed(crops)  # (N, 768)
 
-        # UMAP: reduce to 2D for clustering
-        n_neighbors = min(15, len(crops) - 1)
-        self._umap = UMAP(n_components=2, n_neighbors=n_neighbors, random_state=42)
-        reduced = self._umap.fit_transform(embeddings)  # (N, 2)
-
-        # K-Means on 2D UMAP space
+        # K-Means directly on the raw embedding space (see module docstring).
         self._kmeans = KMeans(n_clusters=2, n_init=10, random_state=0)
-        self._kmeans.fit(reduced)
+        self._kmeans.fit(embeddings)
 
         # Store per-cluster mean in raw embedding space for fast classify()
         labels = self._kmeans.labels_
@@ -210,19 +210,30 @@ class TeamClassifier:
         label — so callers can cache it per track_id and re-derive the label each
         frame from the fixed _offense_cluster set at fit() time.
         """
+        return [c for c, _ in self.assign_clusters_margins(frame, boxes)]
+
+    def assign_clusters_margins(self, frame: np.ndarray, boxes: list) -> list[tuple[int, float]]:
+        """
+        Like assign_clusters, but returns (cluster, margin) per box, where
+        margin is the relative gap between the distances to the two centroids
+        (0 = equidistant/ambiguous crop, larger = more decisive). Invalid crops
+        yield (-1, 0.0).
+        """
         if self._centroids is None:
             raise RuntimeError("Call fit() before assign_clusters().")
 
         crops, valid_idx = self._crops(frame, boxes)
-        out = [-1] * len(boxes)
+        out = [(-1, 0.0)] * len(boxes)
         if not crops:
             return out
 
         embeddings = self._embed(crops)  # (N, 768)
         for emb, box_idx in zip(embeddings, valid_idx):
-            d0 = np.linalg.norm(emb - self._centroids[0])
-            d1 = np.linalg.norm(emb - self._centroids[1])
-            out[box_idx] = 0 if d0 <= d1 else 1
+            d0 = float(np.linalg.norm(emb - self._centroids[0]))
+            d1 = float(np.linalg.norm(emb - self._centroids[1]))
+            mean = (d0 + d1) / 2.0
+            margin = abs(d0 - d1) / mean if mean > 0 else 0.0
+            out[box_idx] = (0 if d0 <= d1 else 1, margin)
         return out
 
     def cluster_to_label(self, cluster: int) -> str:

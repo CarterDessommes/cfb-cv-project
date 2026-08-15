@@ -31,21 +31,12 @@ def make_classifier(monkeypatch):
     clf._centroids = np.array([[0.0], [255.0]], dtype=np.float32)
     clf._track_clusters = {}
     clf._offense_cluster = 0
-    clf._ball_votes = []
-    clf._VOTE_WIN = 30
     counter = CountingEmbed()
     monkeypatch.setattr(clf, "_embed", counter)
     return clf, counter
 
 
 def install_fake_clustering(monkeypatch):
-    class FakeUMAP:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def fit_transform(self, embeddings):
-            return embeddings
-
     class FakeKMeans:
         def __init__(self, *args, **kwargs):
             self.labels_ = None
@@ -54,13 +45,10 @@ def install_fake_clustering(monkeypatch):
             self.labels_ = (embeddings[:, 0] > 100).astype(int)
             return self
 
-    umap = types.ModuleType("umap")
-    umap.UMAP = FakeUMAP
     sklearn = types.ModuleType("sklearn")
     sklearn_cluster = types.ModuleType("sklearn.cluster")
     sklearn_cluster.KMeans = FakeKMeans
     sklearn.cluster = sklearn_cluster
 
-    monkeypatch.setitem(sys.modules, "umap", umap)
     monkeypatch.setitem(sys.modules, "sklearn", sklearn)
     monkeypatch.setitem(sys.modules, "sklearn.cluster", sklearn_cluster)

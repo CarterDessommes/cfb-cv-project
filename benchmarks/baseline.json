@@ -10,7 +10,7 @@
     "player_precision": 0.9320388349514563,
     "player_recall": 0.8727272727272727,
     "player_true_positives": 96,
-    "team_accuracy": 0.9583333333333334,
+    "team_accuracy": 0.9791666666666666,
     "team_labeled_count": 96
   },
   "config": {
@@ -23,14 +23,14 @@
     "no_ball": false,
     "ocr_every": 5
   },
-  "created_at": "2026-06-02T15:32:54",
-  "labels_path": "/Users/carter/conductor/workspaces/cfb-cv-project/kabul-v3/benchmarks/fixtures/bijon_run_labels.json",
+  "created_at": "2026-08-14T23:37:05",
+  "labels_path": "/Users/carter/conductor/workspaces/cfb-cv-project/charlottetown/benchmarks/fixtures/bijon_run_labels.json",
   "predictions": [
     {
       "ball": {
         "center": [
-          817.671875,
-          555.9765625
+          820.583251953125,
+          552.7291259765625
         ]
       },
       "frame_number": 0,
@@ -43,8 +43,8 @@
             806
           ],
           "field_x": 61.01,
-          "field_y": 20.35,
-          "number": "26",
+          "field_y": 20.39,
+          "number": "5",
           "team": "offense",
           "track_id": 1
         },
@@ -55,9 +55,9 @@
             859,
             349
           ],
-          "field_x": 61.52,
-          "field_y": 38.63,
-          "number": "57",
+          "field_x": 61.5,
+          "field_y": 38.2,
+          "number": "unreadable",
           "team": "offense",
           "track_id": 2
         },
@@ -68,9 +68,9 @@
             960,
             648
           ],
-          "field_x": 64.56,
-          "field_y": 26.57,
-          "number": "57",
+          "field_x": 64.58,
+          "field_y": 26.43,
+          "number": "0",
           "team": "defense",
           "track_id": 3
         },
@@ -81,9 +81,9 @@
             1071,
             808
           ],
-          "field_x": 66.72,
-          "field_y": 21.31,
-          "number": "26",
+          "field_x": 66.77,
+          "field_y": 21.25,
+          "number": "2",
           "team": "defense",
           "track_id": 4
         },
@@ -94,9 +94,9 @@
             1358,
             558
           ],
-          "field_x": 68.87,
-          "field_y": 30.75,
-          "number": "57",
+          "field_x": 68.92,
+          "field_y": 30.46,
+          "number": "?",
           "team": "defense",
           "track_id": 5
         },
@@ -107,9 +107,9 @@
             1229,
             705
           ],
-          "field_x": 67.93,
-          "field_y": 25.07,
-          "number": "99",
+          "field_x": 67.99,
+          "field_y": 24.92,
+          "number": "53",
           "team": "defense",
           "track_id": 6
         },
@@ -120,9 +120,9 @@
             998,
             550
           ],
-          "field_x": 64.46,
-          "field_y": 30.35,
-          "number": "57",
+          "field_x": 64.47,
+          "field_y": 30.11,
+          "number": "90",
           "team": "defense",
           "track_id": 7
         },
@@ -133,9 +133,9 @@
             368,
             602
           ],
-          "field_x": 57.68,
-          "field_y": 27.17,
-          "number": "99",
+          "field_x": 57.65,
+          "field_y": 27.09,
+          "number": "7",
           "team": "offense",
           "track_id": 8
         },
@@ -146,9 +146,9 @@
             489,
             552
           ],
-          "field_x": 58.64,
-          "field_y": 29.32,
-          "number": "57",
+          "field_x": 58.62,
+          "field_y": 29.17,
+          "number": "18",
           "team": "offense",
           "track_id": 9
         },
@@ -159,9 +159,9 @@
             1397,
             954
           ],
-          "field_x": 70.55,
-          "field_y": 17.41,
-          "number": "22",
+          "field_x": 70.67,
+          "field_y": 17.36,
+          "number": "14",
           "team": "defense",
           "track_id": 10
         },
@@ -172,9 +172,9 @@
             853,
             771
           ],
-          "field_x": 64.18,
-          "field_y": 22.11,
-          "number": "99",
+          "field_x": 64.21,
+          "field_y": 22.06,
+          "number": "0",
           "team": "defense",
           "track_id": 11
         },
@@ -185,9 +185,9 @@
             1109,
             335
           ],
-          "field_x": 64.92,
-          "field_y": 39.79,
-          "number": "22",
+          "field_x": 64.91,
+          "field_y": 39.3,
+          "number": "14",
           "team": "defense",
           "track_id": 12
         },
@@ -199,8 +199,8 @@
             434
           ],
           "field_x": 64.33,
-          "field_y": 35.19,
-          "number": "26",
+          "field_y": 34.83,
+          "number": "94",
           "team": "defense",
           "track_id": 13
         },
@@ -212,8 +212,8 @@
             737
           ],
           "field_x": 62.2,
-          "field_y": 22.94,
-          "number": "99",
+          "field_y": 22.9,
+          "number": "71",
           "team": "offense",
           "track_id": 14
         },
@@ -224,9 +224,9 @@
             652,
             680
           ],
-          "field_x": 61.38,
-          "field_y": 24.85,
-          "number": "99",
+          "field_x": 61.37,
+          "field_y": 24.78,
+          "number": "89",
           "team": "offense",
           "track_id": 15
         },
@@ -238,8 +238,8 @@
             568
           ],
           "field_x": 62.62,
-          "field_y": 29.33,
-          "number": "99",
+          "field_y": 29.14,
+          "number": "?",
           "team": "offense",
           "track_id": 16
         },
@@ -250,9 +250,9 @@
             807,
             484
           ],
-          "field_x": 61.89,
-          "field_y": 32.66,
-          "number": "99",
+          "field_x": 61.88,
+          "field_y": 32.39,
+          "number": "?",
           "team": "offense",
           "track_id": 17
         },
@@ -263,9 +263,9 @@
             799,
             518
           ],
-          "field_x": 61.98,
-          "field_y": 31.25,
-          "number": "49",
+          "field_x": 61.97,
+          "field_y": 31.02,
+          "number": "unreadable",
           "team": "offense",
           "track_id": 18
         },
@@ -277,8 +277,8 @@
             626
           ],
           "field_x": 62.0,
-          "field_y": 26.97,
-          "number": "26",
+          "field_y": 26.84,
+          "number": "71",
           "team": "offense",
           "track_id": 19
         }
@@ -288,7 +288,7 @@
       "ball": {
         "center": [
           808.9375,
-          542.875
+          541.9791259765625
         ]
       },
       "frame_number": 60,
@@ -300,9 +300,9 @@
             546,
             793
           ],
-          "field_x": 61.06,
-          "field_y": 20.26,
-          "number": "26",
+          "field_x": 60.97,
+          "field_y": 20.42,
+          "number": "5",
           "team": "offense",
           "track_id": 1
         },
@@ -313,9 +313,9 @@
             856,
             334
           ],
-          "field_x": 61.54,
-          "field_y": 38.95,
-          "number": "57",
+          "field_x": 61.43,
+          "field_y": 38.34,
+          "number": "unreadable",
           "team": "offense",
           "track_id": 2
         },
@@ -326,9 +326,9 @@
             937,
             630
           ],
-          "field_x": 64.36,
-          "field_y": 26.7,
-          "number": "57",
+          "field_x": 64.26,
+          "field_y": 26.64,
+          "number": "0",
           "team": "defense",
           "track_id": 3
         },
@@ -339,9 +339,9 @@
             978,
             814
           ],
-          "field_x": 65.91,
+          "field_x": 65.86,
           "field_y": 20.49,
-          "number": "26",
+          "number": "2",
           "team": "defense",
           "track_id": 4
         },
@@ -352,9 +352,9 @@
             1354,
             544
           ],
-          "field_x": 68.82,
-          "field_y": 30.78,
-          "number": "99",
+          "field_x": 68.85,
+          "field_y": 30.7,
+          "number": "48",
           "team": "defense",
           "track_id": 5
         },
@@ -365,9 +365,9 @@
             1228,
             691
           ],
-          "field_x": 67.93,
-          "field_y": 25.08,
-          "number": "99",
+          "field_x": 67.95,
+          "field_y": 25.03,
+          "number": "53",
           "team": "defense",
           "track_id": 6
         },
@@ -378,9 +378,9 @@
             988,
             537
           ],
-          "field_x": 64.37,
-          "field_y": 30.35,
-          "number": "57",
+          "field_x": 64.25,
+          "field_y": 30.2,
+          "number": "90",
           "team": "defense",
           "track_id": 7
         },
@@ -391,9 +391,9 @@
             369,
             588
           ],
-          "field_x": 57.71,
-          "field_y": 27.23,
-          "number": "26",
+          "field_x": 57.74,
+          "field_y": 27.14,
+          "number": "7",
           "team": "offense",
           "track_id": 8
         },
@@ -404,9 +404,9 @@
             465,
             538
           ],
-          "field_x": 58.51,
-          "field_y": 29.39,
-          "number": "57",
+          "field_x": 58.5,
+          "field_y": 29.19,
+          "number": "18",
           "team": "offense",
           "track_id": 9
         },
@@ -417,9 +417,9 @@
             1360,
             953
           ],
-          "field_x": 70.18,
-          "field_y": 17.01,
-          "number": "22",
+          "field_x": 70.41,
+          "field_y": 16.8,
+          "number": "14",
           "team": "defense",
           "track_id": 10
         },
@@ -430,9 +430,9 @@
             858,
             744
           ],
-          "field_x": 64.16,
-          "field_y": 22.53,
-          "number": "99",
+          "field_x": 64.07,
+          "field_y": 22.56,
+          "number": "0",
           "team": "defense",
           "track_id": 11
         },
@@ -443,9 +443,9 @@
             1066,
             333
           ],
-          "field_x": 64.44,
-          "field_y": 39.37,
-          "number": "22",
+          "field_x": 64.3,
+          "field_y": 38.91,
+          "number": "unreadable",
           "team": "defense",
           "track_id": 12
         },
@@ -456,9 +456,9 @@
             992,
             432
           ],
-          "field_x": 64.06,
-          "field_y": 34.76,
-          "number": "26",
+          "field_x": 63.93,
+          "field_y": 34.46,
+          "number": "94",
           "team": "defense",
           "track_id": 13
         },
@@ -469,9 +469,9 @@
             687,
             724
           ],
-          "field_x": 62.21,
-          "field_y": 22.88,
-          "number": "99",
+          "field_x": 62.1,
+          "field_y": 22.93,
+          "number": "71",
           "team": "offense",
           "track_id": 14
         },
@@ -482,9 +482,9 @@
             648,
             668
           ],
-          "field_x": 61.43,
-          "field_y": 24.77,
-          "number": "99",
+          "field_x": 61.33,
+          "field_y": 24.78,
+          "number": "89",
           "team": "offense",
           "track_id": 15
         },
@@ -495,9 +495,9 @@
             821,
             559
           ],
-          "field_x": 62.68,
-          "field_y": 29.2,
-          "number": "99",
+          "field_x": 62.56,
+          "field_y": 29.05,
+          "number": "64",
           "team": "offense",
           "track_id": 16
         },
@@ -508,9 +508,9 @@
             803,
             467
           ],
-          "field_x": 61.9,
-          "field_y": 32.91,
-          "number": "99",
+          "field_x": 61.79,
+          "field_y": 32.61,
+          "number": "unreadable",
           "team": "offense",
           "track_id": 17
         },
@@ -521,9 +521,9 @@
             796,
             517
           ],
-          "field_x": 62.1,
-          "field_y": 30.82,
-          "number": "49",
+          "field_x": 61.99,
+          "field_y": 30.61,
+          "number": "unreadable",
           "team": "offense",
           "track_id": 18
         },
@@ -534,9 +534,9 @@
             741,
             619
           ],
-          "field_x": 61.97,
-          "field_y": 26.72,
-          "number": "99",
+          "field_x": 61.86,
+          "field_y": 26.66,
+          "number": "71",
           "team": "offense",
           "track_id": 19
         },
@@ -547,9 +547,9 @@
             760,
             594
           ],
-          "field_x": 62.07,
-          "field_y": 27.71,
-          "number": "26",
+          "field_x": 61.96,
+          "field_y": 27.61,
+          "number": "71",
           "team": "offense",
           "track_id": 21
         }
@@ -566,9 +566,9 @@
             561,
             804
           ],
-          "field_x": 61.14,
-          "field_y": 20.42,
-          "number": "26",
+          "field_x": 61.01,
+          "field_y": 20.4,
+          "number": "5",
           "team": "offense",
           "track_id": 1
         },
@@ -579,9 +579,9 @@
             892,
             318
           ],
-          "field_x": 61.31,
-          "field_y": 38.62,
-          "number": "57",
+          "field_x": 61.54,
+          "field_y": 38.38,
+          "number": "unreadable",
           "team": "offense",
           "track_id": 2
         },
@@ -592,9 +592,9 @@
             970,
             632
           ],
-          "field_x": 64.13,
+          "field_x": 64.15,
           "field_y": 26.59,
-          "number": "57",
+          "number": "0",
           "team": "defense",
           "track_id": 3
         },
@@ -605,9 +605,9 @@
             973,
             837
           ],
-          "field_x": 65.51,
-          "field_y": 20.22,
-          "number": "17",
+          "field_x": 65.48,
+          "field_y": 20.11,
+          "number": "2",
           "team": "defense",
           "track_id": 4
         },
@@ -618,9 +618,9 @@
             1397,
             539
           ],
-          "field_x": 68.56,
-          "field_y": 30.82,
-          "number": "99",
+          "field_x": 68.64,
+          "field_y": 30.71,
+          "number": "unreadable",
           "team": "defense",
           "track_id": 5
         },
@@ -631,9 +631,9 @@
             1272,
             697
           ],
-          "field_x": 67.84,
-          "field_y": 25.06,
-          "number": "99",
+          "field_x": 67.88,
+          "field_y": 24.99,
+          "number": "53",
           "team": "defense",
           "track_id": 6
         },
@@ -644,9 +644,9 @@
             1017,
             535
           ],
-          "field_x": 64.12,
-          "field_y": 30.12,
-          "number": "22",
+          "field_x": 64.19,
+          "field_y": 30.1,
+          "number": "90",
           "team": "defense",
           "track_id": 7
         },
@@ -657,9 +657,9 @@
             375,
             587
           ],
-          "field_x": 57.77,
-          "field_y": 26.99,
-          "number": "26",
+          "field_x": 57.76,
+          "field_y": 27.11,
+          "number": "7",
           "team": "offense",
           "track_id": 8
         },
@@ -670,9 +670,9 @@
             507,
             535
           ],
-          "field_x": 58.72,
-          "field_y": 29.09,
-          "number": "57",
+          "field_x": 58.76,
+          "field_y": 29.18,
+          "number": "18",
           "team": "offense",
           "track_id": 9
         },
@@ -683,9 +683,9 @@
             1436,
             955
           ],
-          "field_x": 70.42,
-          "field_y": 17.71,
-          "number": "17",
+          "field_x": 70.49,
+          "field_y": 17.43,
+          "number": "14",
           "team": "defense",
           "track_id": 10
         },
@@ -696,9 +696,9 @@
             902,
             739
           ],
-          "field_x": 64.11,
-          "field_y": 23.0,
-          "number": "99",
+          "field_x": 64.08,
+          "field_y": 22.97,
+          "number": "0",
           "team": "defense",
           "track_id": 11
         },
@@ -709,9 +709,9 @@
             1113,
             318
           ],
-          "field_x": 64.17,
-          "field_y": 39.19,
-          "number": "22",
+          "field_x": 64.35,
+          "field_y": 38.88,
+          "number": "unreadable",
           "team": "defense",
           "track_id": 12
         },
@@ -722,9 +722,9 @@
             1072,
             417
           ],
-          "field_x": 64.09,
-          "field_y": 34.83,
-          "number": "26",
+          "field_x": 64.22,
+          "field_y": 34.69,
+          "number": "94",
           "team": "defense",
           "track_id": 13
         },
@@ -735,9 +735,9 @@
             704,
             730
           ],
-          "field_x": 62.16,
-          "field_y": 22.93,
-          "number": "99",
+          "field_x": 62.1,
+          "field_y": 22.94,
+          "number": "71",
           "team": "offense",
           "track_id": 14
         },
@@ -748,9 +748,9 @@
             670,
             672
           ],
-          "field_x": 61.43,
-          "field_y": 24.71,
-          "number": "99",
+          "field_x": 61.39,
+          "field_y": 24.75,
+          "number": "89",
           "team": "offense",
           "track_id": 15
         },
@@ -761,9 +761,9 @@
             853,
             552
           ],
-          "field_x": 62.53,
-          "field_y": 29.18,
-          "number": "26",
+          "field_x": 62.58,
+          "field_y": 29.2,
+          "number": "64",
           "team": "offense",
           "track_id": 16
         },
@@ -774,9 +774,9 @@
             830,
             458
           ],
-          "field_x": 61.56,
-          "field_y": 32.64,
-          "number": "99",
+          "field_x": 61.67,
+          "field_y": 32.61,
+          "number": "unreadable",
           "team": "offense",
           "track_id": 17
         },
@@ -787,9 +787,9 @@
             841,
             496
           ],
-          "field_x": 62.04,
+          "field_x": 62.12,
           "field_y": 31.22,
-          "number": "99",
+          "number": "unreadable",
           "team": "offense",
           "track_id": 18
         },
@@ -800,9 +800,9 @@
             773,
             609
           ],
-          "field_x": 62.04,
-          "field_y": 27.01,
-          "number": "99",
+          "field_x": 62.05,
+          "field_y": 27.05,
+          "number": "71",
           "team": "offense",
           "track_id": 19
         }
@@ -819,9 +819,9 @@
             946,
             840
           ],
-          "field_x": 64.93,
-          "field_y": 25.75,
-          "number": "99",
+          "field_x": 65.12,
+          "field_y": 26.27,
+          "number": "5",
           "team": "offense",
           "track_id": 1
         },
@@ -832,9 +832,9 @@
             1286,
             568
           ],
-          "field_x": 66.94,
-          "field_y": 33.82,
-          "number": "57",
+          "field_x": 67.17,
+          "field_y": 33.72,
+          "number": "unreadable",
           "team": "offense",
           "track_id": 2
         },
@@ -845,9 +845,9 @@
             1029,
             856
           ],
-          "field_x": 65.88,
-          "field_y": 25.44,
-          "number": "22",
+          "field_x": 66.06,
+          "field_y": 26.04,
+          "number": "2",
           "team": "defense",
           "track_id": 4
         },
@@ -858,9 +858,9 @@
             1223,
             762
           ],
-          "field_x": 66.84,
-          "field_y": 28.09,
-          "number": "99",
+          "field_x": 67.02,
+          "field_y": 28.5,
+          "number": "53",
           "team": "defense",
           "track_id": 6
         },
@@ -871,9 +871,9 @@
             1503,
             505
           ],
-          "field_x": 68.67,
-          "field_y": 36.15,
-          "number": "26",
+          "field_x": 68.87,
+          "field_y": 35.82,
+          "number": "unreadable",
           "team": "defense",
           "track_id": 12
         },
@@ -884,9 +884,9 @@
             826,
             538
           ],
-          "field_x": 62.78,
-          "field_y": 34.03,
-          "number": "99",
+          "field_x": 62.96,
+          "field_y": 33.92,
+          "number": "94",
           "team": "defense",
           "track_id": 13
         },
@@ -897,9 +897,9 @@
             705,
             752
           ],
-          "field_x": 62.87,
-          "field_y": 27.85,
-          "number": "99",
+          "field_x": 63.02,
+          "field_y": 28.11,
+          "number": "8",
           "team": "offense",
           "track_id": 14
         },
@@ -910,9 +910,9 @@
             729,
             556
           ],
-          "field_x": 62.26,
-          "field_y": 33.39,
-          "number": "91",
+          "field_x": 62.4,
+          "field_y": 33.31,
+          "number": "unreadable",
           "team": "offense",
           "track_id": 17
         },
@@ -923,9 +923,9 @@
             794,
             739
           ],
-          "field_x": 63.46,
-          "field_y": 28.28,
-          "number": "99",
+          "field_x": 63.63,
+          "field_y": 28.54,
+          "number": "0",
           "team": "offense",
           "track_id": 25
         },
@@ -936,9 +936,9 @@
             1058,
             726
           ],
-          "field_x": 65.55,
-          "field_y": 28.93,
-          "number": "99",
+          "field_x": 65.76,
+          "field_y": 29.21,
+          "number": "89",
           "team": "offense",
           "track_id": 15
         },
@@ -949,9 +949,9 @@
             1417,
             609
           ],
-          "field_x": 68.18,
-          "field_y": 32.76,
-          "number": "57",
+          "field_x": 68.36,
+          "field_y": 32.75,
+          "number": "3",
           "team": "defense",
           "track_id": 28
         },
@@ -962,9 +962,9 @@
             1597,
             953
           ],
-          "field_x": 70.72,
-          "field_y": 23.43,
-          "number": "26",
+          "field_x": 70.67,
+          "field_y": 24.54,
+          "number": "14",
           "team": "defense",
           "track_id": 10
         },
@@ -975,9 +975,9 @@
             959,
             671
           ],
-          "field_x": 64.57,
-          "field_y": 30.35,
-          "number": "99",
+          "field_x": 64.78,
+          "field_y": 30.5,
+          "number": "71",
           "team": "offense",
           "track_id": 27
         },
@@ -988,9 +988,9 @@
             1044,
             662
           ],
-          "field_x": 65.31,
-          "field_y": 30.72,
-          "number": "99",
+          "field_x": 65.53,
+          "field_y": 30.86,
+          "number": "0",
           "team": "defense",
           "track_id": 3
         },
@@ -1001,9 +1001,9 @@
             1150,
             692
           ],
-          "field_x": 66.31,
-          "field_y": 30.0,
-          "number": "22",
+          "field_x": 66.51,
+          "field_y": 30.22,
+          "number": "90",
           "team": "defense",
           "track_id": 7
         },
@@ -1014,9 +1014,9 @@
             935,
             615
           ],
-          "field_x": 64.39,
-          "field_y": 31.97,
-          "number": "26",
+          "field_x": 64.6,
+          "field_y": 31.99,
+          "number": "71",
           "team": "offense",
           "track_id": 21
         },
@@ -1027,9 +1027,9 @@
             1001,
             613
           ],
-          "field_x": 64.89,
-          "field_y": 32.11,
-          "number": "99",
+          "field_x": 65.11,
+          "field_y": 32.13,
+          "number": "57",
           "team": "offense",
           "track_id": 32
         },
@@ -1040,9 +1040,9 @@
             914,
             563
           ],
-          "field_x": 63.56,
-          "field_y": 33.4,
-          "number": "28",
+          "field_x": 63.76,
+          "field_y": 33.32,
+          "number": "?",
           "team": "offense",
           "track_id": 30
         }
@@ -1059,9 +1059,9 @@
             883,
             954
           ],
-          "field_x": 64.55,
-          "field_y": 21.5,
-          "number": "26",
+          "field_x": 70.22,
+          "field_y": 30.11,
+          "number": "5",
           "team": "offense",
           "track_id": 1
         },
@@ -1072,8 +1072,8 @@
             1331,
             790
           ],
-          "field_x": 67.61,
-          "field_y": 26.4,
+          "field_x": 72.89,
+          "field_y": 34.13,
           "number": "53",
           "team": "defense",
           "track_id": 6
@@ -1085,9 +1085,9 @@
             298,
             700
           ],
-          "field_x": 57.99,
-          "field_y": 27.52,
-          "number": "99",
+          "field_x": 65.68,
+          "field_y": 35.73,
+          "number": "unreadable",
           "team": "offense",
           "track_id": 17
         },
@@ -1098,9 +1098,9 @@
             1102,
             940
           ],
-          "field_x": 66.21,
-          "field_y": 22.16,
-          "number": "99",
+          "field_x": 71.56,
+          "field_y": 30.54,
+          "number": "89",
           "team": "offense",
           "track_id": 15
         },
@@ -1111,9 +1111,9 @@
             1499,
             953
           ],
-          "field_x": 69.59,
-          "field_y": 22.44,
-          "number": "67",
+          "field_x": 74.28,
+          "field_y": 30.48,
+          "number": "14",
           "team": "defense",
           "track_id": 10
         },
@@ -1124,9 +1124,9 @@
             407,
             920
           ],
-          "field_x": 60.3,
-          "field_y": 21.63,
-          "number": "70",
+          "field_x": 66.97,
+          "field_y": 30.59,
+          "number": "71",
           "team": "offense",
           "track_id": 27
         },
@@ -1137,9 +1137,9 @@
             930,
             833
           ],
-          "field_x": 64.43,
-          "field_y": 24.69,
-          "number": "99",
+          "field_x": 70.31,
+          "field_y": 32.89,
+          "number": "0",
           "team": "defense",
           "track_id": 3
         },
@@ -1150,9 +1150,9 @@
             472,
             778
           ],
-          "field_x": 60.16,
-          "field_y": 25.53,
-          "number": "81",
+          "field_x": 67.13,
+          "field_y": 33.93,
+          "number": "71",
           "team": "offense",
           "track_id": 45
         },
@@ -1163,9 +1163,9 @@
             597,
             798
           ],
-          "field_x": 61.43,
-          "field_y": 25.17,
-          "number": "26",
+          "field_x": 68.06,
+          "field_y": 33.53,
+          "number": "64",
           "team": "offense",
           "track_id": 43
         },
@@ -1176,10 +1176,10 @@
             967,
             942
           ],
-          "field_x": 65.1,
-          "field_y": 21.91,
-          "number": "26",
-          "team": "defense",
+          "field_x": 70.66,
+          "field_y": 30.42,
+          "number": "90",
+          "team": "offense",
           "track_id": 7
         },
         {
@@ -1189,9 +1189,9 @@
             440,
             798
           ],
-          "field_x": 59.98,
-          "field_y": 24.93,
-          "number": "99",
+          "field_x": 66.96,
+          "field_y": 33.44,
+          "number": "0",
           "team": "offense",
           "track_id": 25
         },
@@ -1202,9 +1202,9 @@
             1620,
             942
           ],
-          "field_x": 70.36,
-          "field_y": 22.85,
-          "number": "26",
+          "field_x": 74.92,
+          "field_y": 30.78,
+          "number": "2",
           "team": "defense",
           "track_id": 49
         },
@@ -1215,9 +1215,9 @@
             934,
             632
           ],
-          "field_x": 63.67,
-          "field_y": 30.47,
-          "number": "99",
+          "field_x": 70.08,
+          "field_y": 37.82,
+          "number": "18",
           "team": "offense",
           "track_id": 9
         },
@@ -1228,9 +1228,9 @@
             531,
             855
           ],
-          "field_x": 60.95,
-          "field_y": 23.49,
-          "number": "26",
+          "field_x": 67.59,
+          "field_y": 32.14,
+          "number": "65",
           "team": "offense",
           "track_id": 52
         },
@@ -1241,9 +1241,9 @@
             839,
             805
           ],
-          "field_x": 63.44,
-          "field_y": 25.3,
-          "number": "99",
+          "field_x": 69.59,
+          "field_y": 33.49,
+          "number": "94",
           "team": "defense",
           "track_id": 55
         },
@@ -1254,9 +1254,9 @@
             634,
             860
           ],
-          "field_x": 61.94,
-          "field_y": 23.53,
-          "number": "99",
+          "field_x": 68.34,
+          "field_y": 32.09,
+          "number": "64",
           "team": "offense",
           "track_id": 48
         },
@@ -1267,16 +1267,21 @@
             1276,
             639
           ],
-          "field_x": 66.57,
-          "field_y": 30.67,
-          "number": "26",
+          "field_x": 72.31,
+          "field_y": 37.83,
+          "number": "unreadable",
           "team": "defense",
           "track_id": 44
         }
       ]
     },
     {
-      "ball": null,
+      "ball": {
+        "center": [
+          707.708251953125,
+          449.70831298828125
+        ]
+      },
       "frame_number": 295,
       "players": [
         {
@@ -1286,9 +1291,9 @@
             1005,
             954
           ],
-          "field_x": 65.05,
-          "field_y": 21.59,
-          "number": "67",
+          "field_x": 70.61,
+          "field_y": 30.14,
+          "number": "5",
           "team": "offense",
           "track_id": 1
         },
@@ -1299,8 +1304,8 @@
             1541,
             604
           ],
-          "field_x": 68.85,
-          "field_y": 32.08,
+          "field_x": 74.15,
+          "field_y": 38.88,
           "number": "53",
           "team": "defense",
           "track_id": 6
@@ -1312,9 +1317,9 @@
             240,
             713
           ],
-          "field_x": 57.04,
-          "field_y": 26.98,
-          "number": "26",
+          "field_x": 64.95,
+          "field_y": 35.35,
+          "number": "unreadable",
           "team": "offense",
           "track_id": 17
         },
@@ -1325,9 +1330,9 @@
             414,
             974
           ],
-          "field_x": 59.99,
-          "field_y": 20.16,
-          "number": "97",
+          "field_x": 66.63,
+          "field_y": 29.36,
+          "number": "71",
           "team": "offense",
           "track_id": 27
         },
@@ -1338,9 +1343,9 @@
             1496,
             756
           ],
-          "field_x": 68.32,
-          "field_y": 27.47,
-          "number": "99",
+          "field_x": 73.51,
+          "field_y": 35.0,
+          "number": "0",
           "team": "defense",
           "track_id": 3
         },
@@ -1351,10 +1356,10 @@
             1503,
             973
           ],
-          "field_x": 69.03,
-          "field_y": 21.84,
-          "number": "53",
-          "team": "defense",
+          "field_x": 73.79,
+          "field_y": 30.0,
+          "number": "90",
+          "team": "offense",
           "track_id": 7
         },
         {
@@ -1364,9 +1369,9 @@
             774,
             862
           ],
-          "field_x": 62.27,
-          "field_y": 23.53,
-          "number": "26",
+          "field_x": 68.59,
+          "field_y": 32.06,
+          "number": "65",
           "team": "offense",
           "track_id": 52
         },
@@ -1377,9 +1382,9 @@
             1025,
             850
           ],
-          "field_x": 64.45,
-          "field_y": 24.23,
-          "number": "99",
+          "field_x": 70.3,
+          "field_y": 32.49,
+          "number": "64",
           "team": "offense",
           "track_id": 48
         },
@@ -1390,9 +1395,9 @@
             1167,
             946
           ],
-          "field_x": 66.4,
-          "field_y": 22.04,
-          "number": "26",
+          "field_x": 71.7,
+          "field_y": 30.42,
+          "number": "89",
           "team": "offense",
           "track_id": 15
         },
@@ -1403,9 +1408,9 @@
             1214,
             715
           ],
-          "field_x": 65.51,
-          "field_y": 28.22,
-          "number": "26",
+          "field_x": 71.35,
+          "field_y": 35.83,
+          "number": "89",
           "team": "defense",
           "track_id": 44
         }
@@ -1421,12 +1426,12 @@
     "team_accuracy_drop": 0.03
   },
   "timings": {
-    "fps": 7.133788152509739,
-    "mean_frame_seconds": 0.1388335482707417,
-    "model_load_seconds": 1.0861256250063889,
-    "p95_frame_seconds": 0.17713183400337584,
-    "processing_seconds": 41.49268154197489,
-    "total_seconds": 42.57880716698128
+    "fps": 6.893126815614915,
+    "mean_frame_seconds": 0.14347561768521996,
+    "model_load_seconds": 3.9081903750193305,
+    "p95_frame_seconds": 0.31211574998451397,
+    "processing_seconds": 42.941325166029856,
+    "total_seconds": 46.849515541049186
   },
-  "video_path": "/Users/carter/conductor/workspaces/cfb-cv-project/kabul-v3/test media/videos/bijon_run.mp4"
+  "video_path": "/Users/carter/conductor/workspaces/cfb-cv-project/charlottetown/test media/videos/bijon_run.mp4"
 }

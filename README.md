@@ -36,3 +36,8 @@ python3 benchmarks/run_benchmarks.py --benchmark pass1 --check
 The first successful labeled run creates `benchmarks/baseline.json`. Later
 checks fail on speed or accuracy regressions, and automatically update the
 baseline when the run passes all gates and improves a tracked metric.
+
+Timings in a baseline are only comparable on the machine/session that recorded
+them. After a hardware change (or when a stale baseline's FPS/p95 gates fail on
+code that hasn't changed), delete the baseline JSON and re-run `--check` once to
+re-baseline; accuracy metrics are deterministic and comparable everywhere.

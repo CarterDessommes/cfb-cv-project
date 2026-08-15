@@ -15,7 +15,8 @@ class BallTracker:
     """
 
     def __init__(self, model_path: str, ball_conf: float = 0.3,
-                 roi_size: int = 320, full_every: int = 30, max_coast: int = 3):
+                 roi_size: int = 320, full_every: int = 30, max_coast: int = 3,
+                 full_imgsz: int = 960):
         from ultralytics import YOLO
 
         self.model = YOLO(model_path)
@@ -26,7 +27,10 @@ class BallTracker:
         self.roi_size = roi_size
         # imgsz must be a multiple of 32; the crop is square so one size covers it.
         self.roi_imgsz = max(32, (roi_size // 32) * 32)
-        self.full_imgsz = 640
+        # 960 (not 640) for full-frame passes: on 1720px broadcast frames the
+        # ball is only a few pixels at 640 and acquisition fails (e.g. conf 0.07
+        # vs 0.61 at 960 on the pass1 snap frame). 1280 starts hallucinating.
+        self.full_imgsz = full_imgsz
         self.full_every = full_every
         self.max_coast = max_coast
         # When the ball is fully lost, only attempt the (expensive) full-frame

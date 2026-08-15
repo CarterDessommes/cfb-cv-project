@@ -36,6 +36,8 @@ Defaults:
 
 import sys
 import time
+from collections import Counter, deque
+
 import cv2
 import numpy as np
 
@@ -81,6 +83,69 @@ COLORS = {
     "defense": (255, 100,   0),
     "unknown": (128, 128, 128),
 }
+
+_TEAM_REVERIFY_EVERY  = 22    # frames between full team re-verification sweeps:
+                              # ≤5% of frames carry a sweep, so the periodic
+                              # SigLIP batch stays out of the p95 latency budget
+                              # while drift still corrects within ~1.5 s @30fps
+_TEAM_SWEEP_PHASE     = 13    # sweep phase offset: avoids stacking onto the
+                              # every-5-frames OCR schedule on most sweeps
+_TEAM_REVERIFY_MARGIN = 0.15  # min centroid-distance margin for a sweep re-vote
+_TEAM_VOTES = 3               # per-track majority window
+
+
+class TeamVoter:
+    """Majority-vote team-cluster assignment per track.
+
+    New tracks are assigned on sight (one crop vote), and every
+    _TEAM_REVERIFY_EVERY frames all visible tracks are re-embedded and re-voted.
+    A bad first crop, or a track that drifts onto a different player (ID
+    transfer), self-corrects after two sweeps instead of staying wrong for the
+    track's lifetime. Sweep re-votes only count when the embedding is decisive
+    (margin gate) so ambiguous crops from tackle piles can't flip good labels.
+    """
+
+    def __init__(self, classifier: TeamClassifier):
+        self.classifier = classifier
+        self._votes: dict[int, deque] = {}
+
+    def seed_from_fit(self) -> None:
+        """Adopt the fit-frame cluster labels as first votes (avoids re-embedding
+        the same crops; identical to assign_clusters by construction now that
+        K-Means runs in the raw embedding space)."""
+        for tid, cluster in self.classifier._track_clusters.items():
+            self._vote(tid, cluster)
+
+    def _vote(self, track_id: int, cluster: int) -> None:
+        self._votes.setdefault(int(track_id), deque(maxlen=_TEAM_VOTES)).append(cluster)
+
+    def update(self, frame, frame_num: int, boxes: list) -> None:
+        """Cast cluster votes for this frame (new tracks + periodic sweep)."""
+        if frame_num % _TEAM_REVERIFY_EVERY == _TEAM_SWEEP_PHASE:
+            targets = boxes
+        else:
+            targets = [b for b in boxes if int(b[4]) not in self._votes]
+        if not targets:
+            return
+        results = self.classifier.assign_clusters_margins(frame, targets)
+        for b, (c, margin) in zip(targets, results):
+            if c < 0:
+                continue
+            tid = int(b[4])
+            if tid not in self._votes:
+                self._vote(tid, c)                        # first sighting: always vote
+            elif margin >= _TEAM_REVERIFY_MARGIN:
+                self._vote(tid, c)                        # re-vote only when decisive
+
+    def cluster_of(self, track_id: int) -> int:
+        votes = self._votes.get(int(track_id))
+        if not votes:
+            return -1
+        top = Counter(votes).most_common()
+        if len(top) > 1 and top[0][1] == top[1][1]:
+            return votes[-1]          # tie → latest observation wins
+        return top[0][0]
+
 
 _MIN_CROP_PX = 10
 _OCR_CONF_THRESHOLD = 0.45  # min classifier confidence to accept a read
@@ -152,19 +217,18 @@ class JerseyOCR:
         guess is below the confidence gate yields (None, top5, blur_var)."""
         if not crops:
             return []
-        results = self.model(crops, **self.predict_kwargs)
-        out = []
-        for crop, r in zip(crops, results):
-            blur_var = float(cv2.Laplacian(crop, cv2.CV_64F).var())
-            if blur_var < _BLUR_THRESHOLD:
-                out.append((None, [], blur_var))
-                continue
+        # Blur-gate first so the classifier only runs on readable crops.
+        blur_vars = [float(cv2.Laplacian(c, cv2.CV_64F).var()) for c in crops]
+        sharp_idx = [i for i, v in enumerate(blur_vars) if v >= _BLUR_THRESHOLD]
+        results = self.model([crops[i] for i in sharp_idx], **self.predict_kwargs) if sharp_idx else []
+        out = [(None, [], v) for v in blur_vars]
+        for i, r in zip(sharp_idx, results):
             top5_idx  = r.probs.top5
             top5_conf = r.probs.top5conf.cpu().numpy()
-            top5      = [(r.names[i], float(c)) for i, c in zip(top5_idx, top5_conf)]
+            top5      = [(r.names[j], float(c)) for j, c in zip(top5_idx, top5_conf)]
             top1_label, top1_conf = top5[0]
             top1 = (top1_label, top1_conf) if top1_conf >= _OCR_CONF_THRESHOLD else None
-            out.append((top1, top5, blur_var))
+            out[i] = (top1, top5, blur_vars[i])
         return out
 
 
@@ -220,7 +284,7 @@ def _p95(values: list[float]) -> float:
 def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/player-best.pt",
                            ocr_model_path="weights/jersey_best.pt",
                            ball_model_path="weights/ball-best.pt",
-                           homography_path="homographies.npz", conf=0.4,
+                           homography_path="field/homographies.npz", conf=0.4,
                            ocr_every=10, ball_every=1, det_imgsz=480, det_every=1,
                            det_imgsz2=960, nms_iou=0.6):
     """Run the field-state pipeline headlessly and return predictions + timings.
@@ -246,11 +310,25 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
     # Opt-in dual-resolution detection: merge a second higher-res pass via NMS,
     # then drive a manually-managed BoT-SORT (Re-ID off) for stable track IDs.
     mst = MultiScaleTracker(get_tracker_config_path(multiscale=True)) if det_imgsz2 else None
-    model_load_seconds = time.perf_counter() - load_start
 
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         raise RuntimeError(f"Could not open video: {video_path}")
+
+    # Warm up like run_pipeline does, so processing timings measure steady state
+    # instead of first-call GPU graph builds. Counted in model_load_seconds.
+    width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    if width > 0 and height > 0:
+        dummy = np.zeros((height, width, 3), dtype=np.uint8)
+        detector(dummy, device=device, half=True, verbose=False, imgsz=det_imgsz)
+        if det_imgsz2:
+            detector(dummy, device=device, half=True, verbose=False, imgsz=det_imgsz2)
+        if ball_detector:
+            ball_detector.warmup(dummy.shape)
+    ocr.warmup()
+    classifier.warmup()
+    model_load_seconds = time.perf_counter() - load_start
 
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     max_frame_index = min(max(target_frames), total - 1) if total > 0 else max(target_frames)
@@ -259,7 +337,7 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
     fitted = False
     ball_xy: tuple[float, float] | None = None
     boxes: list = []   # persisted across frames where detection is skipped
-    cluster_by_id: dict[int, int] = {}
+    voter = TeamVoter(classifier)
     number_by_id: dict[int, str] = {}
     frame_latencies: list[float] = []
     predictions_by_frame: dict[int, dict] = {}
@@ -286,7 +364,8 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
                          for t in tracks if int(t[6]) == 0]
             else:
                 results = detector.track(
-                    frame, persist=True, conf=conf, verbose=False,
+                    frame, tracker=get_tracker_config_path(), persist=True,
+                    conf=conf, verbose=False,
                     device=device, half=True, imgsz=det_imgsz,
                 )
 
@@ -303,16 +382,14 @@ def run_pipeline_benchmark(video_path, frame_numbers, det_model_path="weights/pl
 
         if boxes and not fitted:
             fitted = classifier.fit(frame, boxes, ball_xy=ball_xy)
+            if fitted:
+                voter.seed_from_fit()
 
         if fitted and boxes:
-            new = [b for b in boxes if int(b[4]) not in cluster_by_id]
-            if new:
-                for b, c in zip(new, classifier.assign_clusters(frame, new)):
-                    if c >= 0:
-                        cluster_by_id[int(b[4])] = c
+            voter.update(frame, frame_num, boxes)
 
         def _clusters():
-            return ([cluster_by_id.get(int(b[4]), -1) for b in boxes]
+            return ([voter.cluster_of(b[4]) for b in boxes]
                     if fitted else [-1] * len(boxes))
 
         def _labels(clusters):
@@ -396,7 +473,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
                  ocr_every=10, ball_every=2, ball_roi=320, ball_full_every=30,
                  det_imgsz=480, det_every=1, det_imgsz2=960, nms_iou=0.6,
                  show_grid=False, homography_path="field/homographies.npz",
-                 ball_conf=0.3):
+                 ball_conf=0.3, debug=False):
     from ultralytics import YOLO
 
     _NUMBER_HISTORY.clear()
@@ -430,6 +507,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
         if ball_tracker:
             ball_tracker.warmup(dummy_frame.shape)
     ocr.warmup()
+    classifier.warmup()
 
     writer = None
 
@@ -445,7 +523,7 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
     frame_num = 0
     ball_xy: tuple[float, float] | None = None   # persisted across throttled frames
     boxes: list = []                             # persisted across det-skipped frames
-    cluster_by_id: dict[int, int] = {}           # track_id -> team cluster (0/1)
+    voter = TeamVoter(classifier)                # track_id -> voted team cluster
     number_by_id:  dict[int, str] = {}           # track_id -> stable jersey number
     while cap.isOpened():
         ret, frame = cap.read()
@@ -484,19 +562,17 @@ def run_pipeline(video_path, det_model_path, ocr_model_path, ball_model_path=Non
 
         if boxes and not fitted:
             fitted = classifier.fit(frame, boxes, ball_xy=ball_xy)
+            if fitted:
+                voter.seed_from_fit()
 
-        # ── Team: classify only newly-seen track_ids; cache cluster by id ─────
-        # A player's team is fixed for the life of its track, so SigLIP runs once
-        # per track (event-driven) instead of every frame.
+        # ── Team: vote per track — new tracks on sight, all tracks re-verified
+        # every _TEAM_REVERIFY_EVERY frames so bad first crops / track-ID drift
+        # self-correct instead of staying wrong for the track's lifetime.
         if fitted and boxes:
-            new = [b for b in boxes if int(b[4]) not in cluster_by_id]
-            if new:
-                for b, c in zip(new, classifier.assign_clusters(frame, new)):
-                    if c >= 0:
-                        cluster_by_id[int(b[4])] = c
+            voter.update(frame, frame_num, boxes)
 
         def _clusters():
-            return ([cluster_by_id.get(int(b[4]), -1) for b in boxes]
+            return ([voter.cluster_of(b[4]) for b in boxes]
                     if fitted else [-1] * len(boxes))
 
         def _labels(clusters):
@@ -732,4 +808,4 @@ if __name__ == "__main__":
                  det_imgsz=det_imgsz, det_every=det_every,
                  det_imgsz2=det_imgsz2, nms_iou=nms_iou,
                  show_grid=show_grid, homography_path=homography_path,
-                 ball_conf=ball_conf)
+                 ball_conf=ball_conf, debug=debug)
